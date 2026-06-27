@@ -21,7 +21,6 @@
     <script type="text/babel">
         
         // Define a simple React component
-import React, { useState, useEffect, useRef } from 'react';
 
 // --- STYLING & ASSETS ---
 const globalStyles = `
@@ -101,22 +100,22 @@ const createDeck = () => {
 
 // --- MAIN COMPONENT ---
 export default function App() {
-  const [peerLoaded, setPeerLoaded] = useState(false);
+  const [peerLoaded, setPeerLoaded] = React.useState(false);
   
   // App States: 'menu', 'rules', 'lobby', 'playing'
-  const [appState, setAppState] = useState('menu');
-  const [gameMode, setGameMode] = useState(null); // 'ai', 'peer'
+  const [appState, setAppState] = React.useState('menu');
+  const [gameMode, setGameMode] = React.useState(null); // 'ai', 'peer'
   
   // PeerJS Refs & State
   const peerRef = useRef(null);
   const connRef = useRef(null);
-  const [peerCode, setPeerCode] = useState('');
-  const [joinCodeInput, setJoinCodeInput] = useState('');
-  const [isHost, setIsHost] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('');
+  const [peerCode, setPeerCode] = React.useState('');
+  const [joinCodeInput, setJoinCodeInput] = React.useState('');
+  const [isHost, setIsHost] = React.useState(false);
+  const [connectionStatus, setConnectionStatus] = React.useState('');
 
   // Host/AI Game State (The single source of truth)
-  const [matchState, setMatchState] = useState({
+  const [matchState, setMatchState] = React.useState({
     deck: [],
     playerHand: [],
     opponentHand: [],
@@ -128,10 +127,10 @@ export default function App() {
   });
 
   // Guest State (Received from Host)
-  const [guestState, setGuestState] = useState(null);
+  const [guestState, setGuestState] = React.useState(null);
 
   // --- 1. INITIALIZATION ---
-  useEffect(() => {
+  React.useEffect(() => {
     // Load PeerJS dynamically for P2P multiplayer
     if (!window.Peer) {
       const script = document.createElement('script');
@@ -258,7 +257,7 @@ export default function App() {
   };
 
   // --- 3. AI LOGIC ---
-  useEffect(() => {
+  React.useEffect(() => {
     if (gameMode === 'ai' && matchState.turn === 'opponent' && !matchState.gameOver) {
       const timer = setTimeout(() => {
         const oppHand = matchState.opponentHand;
@@ -335,7 +334,7 @@ export default function App() {
   };
 
   // Sync Host State to Guest whenever matchState changes
-  useEffect(() => {
+  React.useEffect(() => {
     if (gameMode === 'peer' && isHost && connRef.current && appState === 'playing') {
       const stateForGuest = {
         deckCount: matchState.deck.length,
