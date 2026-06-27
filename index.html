@@ -3,715 +3,717 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>React in HTML Example</title>
+    <title>Go Fish! - Play Online</title>
 
-    <!-- 1. Load React and React DOM Core Libraries -->
-    <script src="https://unpkg.com" crossorigin></script>
-    <script src="https://unpkg.com" crossorigin></script>
+    <!-- 1. Load React and React DOM (Core Libraries) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
-    <!-- 2. Load Babel to Transpile JSX Live in the Browser -->
-    <script src="https://unpkg.com"></script>
+    <!-- 2. Load Babel (Transpiles JSX so the browser can read it) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 3. Load Tailwind CSS (Provides all the styling and colors) -->
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
 
-    <!-- 3. The HTML Container where React will render -->
+    <!-- The HTML Container where React will inject the game -->
     <div id="root"></div>
 
-    <!-- 4. React Code Block (Note the type="text/babel") -->
+    <!-- The React Code block -->
     <script type="text/babel">
-        
-        // Define a simple React component
+        // Grab the necessary tools from the global React object
+        const { useState, useEffect, useRef } = React;
 
-// --- STYLING & ASSETS ---
-const globalStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
-  
-  body {
-    font-family: 'Fredoka', sans-serif;
-    background: radial-gradient(#bae6fd 3px, transparent 3px), linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
-    background-size: 32px 32px, 100% 100%;
-    background-attachment: fixed;
-    margin: 0;
-    overflow-x: hidden;
-    user-select: none;
-  }
-
-  .cartoon-border { border: 4px solid #1e293b; }
-  .cartoon-shadow { box-shadow: 6px 6px 0px #1e293b; }
-  .cartoon-shadow-sm { box-shadow: 3px 3px 0px #1e293b; }
-  .cartoon-shadow-lg { box-shadow: 8px 10px 0px #1e293b; }
-
-  .cartoon-btn { transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
-  .cartoon-btn:hover { transform: translateY(-4px) scale(1.02); box-shadow: 6px 8px 0px #1e293b; filter: brightness(1.05); }
-  .cartoon-btn:active { transform: translateY(2px) scale(0.98); box-shadow: 2px 2px 0px #1e293b; }
-
-  .card-hover { transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
-  .card-hover:hover { transform: translateY(-16px) rotate(-3deg) scale(1.05); z-index: 50 !important; }
-
-  .animate-bounce-slight { animation: bounceSlight 3s infinite ease-in-out; }
-  .animate-pulse-soft { animation: pulseSoft 2s infinite ease-in-out; }
-  .animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-
-  @keyframes bounceSlight {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-  }
-  
-  @keyframes pulseSoft {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.03); }
-  }
-  
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(20px) scale(0.95); }
-    to { opacity: 1; transform: translateX(0) scale(1); }
-  }
-
-  /* Custom scrollbar for message log */
-  ::-webkit-scrollbar { width: 8px; }
-  ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
-  ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; border: 2px solid #1e293b; }
-  ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-`;
-
-// --- GAME LOGIC CONSTANTS ---
-const SUITS = [
-  { id: 'H', symbol: '♥', color: 'text-rose-500' },
-  { id: 'D', symbol: '♦', color: 'text-rose-500' },
-  { id: 'C', symbol: '♣', color: 'text-slate-800' },
-  { id: 'S', symbol: '♠', color: 'text-slate-800' }
-];
-const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-
-const createDeck = () => {
-  let deck = [];
-  for (let suit of SUITS) {
-    for (let rank of RANKS) {
-      deck.push({ id: `${suit.id}-${rank}`, rank, suit: suit.symbol, color: suit.color });
-    }
-  }
-  // Shuffle
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-};
-
-// --- MAIN COMPONENT ---
-export default function App() {
-  const [peerLoaded, setPeerLoaded] = React.useState(false);
-  
-  // App States: 'menu', 'rules', 'lobby', 'playing'
-  const [appState, setAppState] = React.useState('menu');
-  const [gameMode, setGameMode] = React.useState(null); // 'ai', 'peer'
-  
-  // PeerJS Refs & State
-  const peerRef = useRef(null);
-  const connRef = useRef(null);
-  const [peerCode, setPeerCode] = React.useState('');
-  const [joinCodeInput, setJoinCodeInput] = React.useState('');
-  const [isHost, setIsHost] = React.useState(false);
-  const [connectionStatus, setConnectionStatus] = React.useState('');
-
-  // Host/AI Game State (The single source of truth)
-  const [matchState, setMatchState] = React.useState({
-    deck: [],
-    playerHand: [],
-    opponentHand: [],
-    playerBooks: [],
-    opponentBooks: [],
-    turn: 'player', // 'player' or 'opponent'
-    messages: [],
-    gameOver: false
-  });
-
-  // Guest State (Received from Host)
-  const [guestState, setGuestState] = React.useState(null);
-
-  // --- 1. INITIALIZATION ---
-  React.useEffect(() => {
-    // Load PeerJS dynamically for P2P multiplayer
-    if (!window.Peer) {
-      const script = document.createElement('script');
-      script.src = "https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js";
-      script.onload = () => setPeerLoaded(true);
-      document.head.appendChild(script);
-    } else {
-      setPeerLoaded(true);
-    }
-    
-    // Inject Custom Styles
-    const styleSheet = document.createElement("style");
-    styleSheet.innerText = globalStyles;
-    document.head.appendChild(styleSheet);
-    
-    return () => { document.head.removeChild(styleSheet); };
-  }, []);
-
-  // --- 2. GAME ENGINE LOGIC (Run by Host / AI) ---
-  const processAsk = (state, asker, target, rank) => {
-    let draft = JSON.parse(JSON.stringify(state)); 
-    let newMessages = [];
-    
-    const askerName = asker === 'player' ? 'You' : 'Opponent';
-    const targetName = target === 'player' ? 'You' : 'Opponent';
-
-    newMessages.push(`${askerName} asked for ${rank}s.`);
-
-    let targetHand = draft[`${target}Hand`];
-    let askerHand = draft[`${asker}Hand`];
-
-    const matchingCards = targetHand.filter(c => c.rank === rank);
-    targetHand = targetHand.filter(c => c.rank !== rank);
-    draft[`${target}Hand`] = targetHand;
-
-    if (matchingCards.length > 0) {
-      newMessages.push(`${targetName} had ${matchingCards.length}!`);
-      draft[`${asker}Hand`].push(...matchingCards);
-      draft.turn = asker; // Keep turn
-    } else {
-      newMessages.push(`${targetName}: "Go Fish!"`);
-      if (draft.deck.length > 0) {
-        const drawnCard = draft.deck.pop();
-        draft[`${asker}Hand`].push(drawnCard);
-        
-        if (asker === 'player') {
-          newMessages.push(`You fished a ${drawnCard.rank}.`);
-        } else {
-          newMessages.push(`Opponent fished a card.`);
-        }
-
-        if (drawnCard.rank === rank) {
-          newMessages.push(`${askerName} fished exactly what they wanted!`);
-          draft.turn = asker;
-        } else {
-          draft.turn = target; // Pass turn
-        }
-      } else {
-        newMessages.push(`The deck is empty!`);
-        draft.turn = target; // Pass turn
-      }
-    }
-
-    // Check for books (4 of a kind)
-    const checkBooks = (playerType, name) => {
-      let hand = draft[`${playerType}Hand`];
-      let books = draft[`${playerType}Books`];
-      const rankCounts = {};
-      hand.forEach(c => { rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1; });
-      
-      for (const r in rankCounts) {
-        if (rankCounts[r] === 4) {
-          newMessages.push(`${name} completed a book of ${r}s!`);
-          books.push(r);
-          draft[`${playerType}Hand`] = hand.filter(c => c.rank !== r);
-        }
-      }
-    };
-
-    checkBooks('player', 'You');
-    checkBooks('opponent', 'Opponent');
-
-    // Rule: Empty hand draws up to 5 cards (if deck has them)
-    const refillHand = (playerType, name) => {
-      if (draft[`${playerType}Hand`].length === 0 && draft.deck.length > 0) {
-        const cardsToDraw = Math.min(5, draft.deck.length);
-        const drawn = draft.deck.splice(-cardsToDraw, cardsToDraw);
-        draft[`${playerType}Hand`].push(...drawn);
-        newMessages.push(`${name} drew ${cardsToDraw} cards to refill hand.`);
-      }
-    };
-
-    refillHand('player', 'You');
-    refillHand('opponent', 'Opponent');
-
-    // Check Game Over condition
-    if (draft.playerBooks.length + draft.opponentBooks.length === 13 || 
-        (draft.deck.length === 0 && (draft.playerHand.length === 0 || draft.opponentHand.length === 0))) {
-      draft.gameOver = true;
-      
-      let pScore = draft.playerBooks.length;
-      let oScore = draft.opponentBooks.length;
-      if (pScore > oScore) newMessages.push("Game Over! You Win! 🎉");
-      else if (oScore > pScore) newMessages.push("Game Over! Opponent Wins!");
-      else newMessages.push("Game Over! It's a Tie!");
-    }
-
-    draft.messages = [...newMessages, ...draft.messages].slice(0, 15);
-    return draft;
-  };
-
-  const initializeGame = () => {
-    const newDeck = createDeck();
-    setMatchState({
-      deck: newDeck.slice(14), // Remaining after 14 cards dealt
-      playerHand: newDeck.slice(0, 7),
-      opponentHand: newDeck.slice(7, 14),
-      playerBooks: [],
-      opponentBooks: [],
-      turn: 'player',
-      messages: ['Game started! Your turn.'],
-      gameOver: false
-    });
-  };
-
-  // --- 3. AI LOGIC ---
-  React.useEffect(() => {
-    if (gameMode === 'ai' && matchState.turn === 'opponent' && !matchState.gameOver) {
-      const timer = setTimeout(() => {
-        const oppHand = matchState.opponentHand;
-        if (oppHand.length > 0) {
-          const randomCard = oppHand[Math.floor(Math.random() * oppHand.length)];
-          setMatchState(prev => processAsk(prev, 'opponent', 'player', randomCard.rank));
-        } else {
-          // Edge case where opponent hand is empty but it's their turn (shouldn't happen with refill rule)
-          setMatchState(prev => ({...prev, turn: 'player'}));
-        }
-      }, 1800); // 1.8s delay to simulate thinking
-      return () => clearTimeout(timer);
-    }
-  }, [matchState.turn, gameMode, matchState.gameOver]);
-
-  // --- 4. MULTIPLAYER (PEERJS) LOGIC ---
-  const generatePeerCode = () => {
-    return Math.floor(1000 + Math.random() * 9000).toString();
-  };
-
-  const hostGame = () => {
-    if (!window.Peer) return;
-    const code = generatePeerCode();
-    setPeerCode(code);
-    setIsHost(true);
-    setConnectionStatus('Waiting for opponent...');
-    
-    const peer = new window.Peer(`gofish-game-${code}`);
-    peerRef.current = peer;
-
-    peer.on('connection', (conn) => {
-      connRef.current = conn;
-      setupConnection(conn, true);
-    });
-  };
-
-  const joinGame = () => {
-    if (!window.Peer || joinCodeInput.length !== 4) return;
-    setIsHost(false);
-    setConnectionStatus('Connecting...');
-    
-    const peer = new window.Peer();
-    peerRef.current = peer;
-
-    peer.on('open', () => {
-      const conn = peer.connect(`gofish-game-${joinCodeInput}`);
-      connRef.current = conn;
-      setupConnection(conn, false);
-    });
-  };
-
-  const setupConnection = (conn, isHostRole) => {
-    conn.on('open', () => {
-      setConnectionStatus('Connected! Starting game...');
-      setTimeout(() => {
-        setAppState('playing');
-        if (isHostRole) initializeGame();
-      }, 1000);
-    });
-
-    conn.on('data', (data) => {
-      if (data.type === 'SYNC' && !isHostRole) {
-        setGuestState(data.state);
-      } else if (data.type === 'ASK' && isHostRole) {
-        // Guest asked for a card
-        setMatchState(prev => processAsk(prev, 'opponent', 'player', data.rank));
-      }
-    });
-
-    conn.on('close', () => {
-      alert("Connection lost!");
-      resetGame();
-    });
-  };
-
-  // Sync Host State to Guest whenever matchState changes
-  React.useEffect(() => {
-    if (gameMode === 'peer' && isHost && connRef.current && appState === 'playing') {
-      const stateForGuest = {
-        deckCount: matchState.deck.length,
-        myHand: matchState.opponentHand, // Guest's hand is Host's opponentHand
-        opponentHandCount: matchState.playerHand.length,
-        myBooks: matchState.opponentBooks,
-        opponentBooks: matchState.playerBooks,
-        isMyTurn: matchState.turn === 'opponent',
-        messages: matchState.messages,
-        gameOver: matchState.gameOver
-      };
-      connRef.current.send({ type: 'SYNC', state: stateForGuest });
-    }
-  }, [matchState, gameMode, isHost, appState]);
-
-  // --- 5. UI INTERACTIONS ---
-  const handleAskCard = (rank) => {
-    if (uiState.gameOver || !uiState.isMyTurn) return;
-
-    if (gameMode === 'ai' || isHost) {
-      setMatchState(prev => processAsk(prev, 'player', 'opponent', rank));
-    } else if (gameMode === 'peer' && !isHost) {
-      // Send action to Host
-      connRef.current.send({ type: 'ASK', rank });
-      // Optimistically assume turn is over temporarily to prevent double clicks
-      setGuestState(prev => ({...prev, isMyTurn: false})); 
-    }
-  };
-
-  const resetGame = () => {
-    if (peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
-    connRef.current = null;
-    setAppState('menu');
-    setGameMode(null);
-    setGuestState(null);
-  };
-
-  // --- 6. DERIVED UI STATE ---
-  // This cleverly unifies the render logic regardless of role (AI, Host, or Guest)
-  let uiState = {
-    myHand: [], opponentHandCount: 0, myBooks: [], opponentBooks: [],
-    deckCount: 0, isMyTurn: false, messages: [], gameOver: false,
-  };
-
-  if (gameMode === 'ai' || isHost) {
-    uiState = {
-      myHand: matchState.playerHand,
-      opponentHandCount: matchState.opponentHand.length,
-      myBooks: matchState.playerBooks,
-      opponentBooks: matchState.opponentBooks,
-      deckCount: matchState.deck.length,
-      isMyTurn: matchState.turn === 'player',
-      messages: matchState.messages,
-      gameOver: matchState.gameOver
-    };
-  } else if (guestState) {
-    uiState = guestState;
-  }
-
-  // --- 7. COMPONENTS ---
-  
-  const Card = ({ card, onClick, selectable, mini }) => {
-    return (
-      <div 
-        onClick={selectable ? onClick : undefined}
-        className={`bg-slate-50 cartoon-border rounded-xl flex flex-col justify-between p-1 sm:p-2 
-          ${mini ? 'w-14 h-20 text-sm' : 'w-20 h-28 sm:w-28 sm:h-40 text-xl sm:text-2xl'} 
-          ${selectable ? 'cursor-pointer card-hover cartoon-shadow hover:bg-white' : 'cartoon-shadow-sm opacity-95'} 
-          ${card.color} transition-all relative shrink-0`}
-      >
-        <div className="flex flex-col items-center leading-none self-start">
-          <span className="font-black">{card.rank}</span>
-          <span className="text-[0.6em] sm:text-sm mt-0.5">{card.suit}</span>
-        </div>
-        
-        <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
-            <span className="text-6xl sm:text-8xl">{card.suit}</span>
-        </div>
-        <span className="self-center text-3xl sm:text-5xl drop-shadow-sm z-10">{card.suit}</span>
-        
-        <div className="flex flex-col items-center leading-none self-end rotate-180">
-          <span className="font-black">{card.rank}</span>
-          <span className="text-[0.6em] sm:text-sm mt-0.5">{card.suit}</span>
-        </div>
-      </div>
-    );
-  };
-
-  const CardBack = ({ mini }) => (
-    <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 cartoon-border rounded-xl flex items-center justify-center
-      ${mini ? 'w-14 h-20' : 'w-20 h-28 sm:w-28 sm:h-40'} cartoon-shadow-sm shrink-0 overflow-hidden relative`}
-    >
-      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.4) 1px, transparent 0)', backgroundSize: '8px 8px' }}></div>
-      <div className="text-white text-3xl sm:text-4xl drop-shadow-md z-10 animate-bounce-slight" style={{ animationDuration: '4s' }}>🐟</div>
-    </div>
-  );
-
-  // --- RENDERS ---
-
-  if (appState === 'menu') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Background decorative elements */}
-        <div className="absolute top-10 left-10 opacity-30 rotate-[-15deg]"><CardBack mini /></div>
-        <div className="absolute bottom-20 right-10 opacity-30 rotate-[20deg]"><CardBack mini /></div>
-
-        <div className="relative flex justify-center space-x-[-20px] animate-bounce-slight mb-8 mt-12">
-          <div className="rotate-[-15deg] translate-y-4"><CardBack mini/></div>
-          <div className="z-10 translate-y-[-10px] scale-110"><Card card={{rank: 'A', suit: '♠', color:'text-slate-800'}} selectable={false} mini/></div>
-          <div className="rotate-[15deg] translate-y-4"><Card card={{rank: 'K', suit: '♥', color:'text-rose-500'}} selectable={false} mini/></div>
-        </div>
-
-        <h1 className="text-7xl md:text-9xl font-black text-white cartoon-shadow-lg text-center mb-16 tracking-wider" style={{WebkitTextStroke: '4px #1e293b'}}>
-          GO FISH!
-        </h1>
-
-        <div className="flex flex-col space-y-5 w-full max-w-sm z-10">
-          <button 
-            className="cartoon-btn bg-gradient-to-b from-yellow-300 to-yellow-500 cartoon-border text-slate-900 font-black text-2xl py-4 px-6 rounded-2xl flex items-center justify-center space-x-3"
-            onClick={() => { setGameMode('ai'); initializeGame(); setAppState('playing'); }}
-          >
-            <span>Play vs AI</span>
-            <span className="text-3xl">🤖</span>
-          </button>
+        // --- STYLING & ASSETS ---
+        const globalStyles = `
+          @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
           
-          <button 
-            className="cartoon-btn bg-gradient-to-b from-green-300 to-green-500 cartoon-border text-slate-900 font-black text-2xl py-4 px-6 rounded-2xl flex justify-between items-center"
-            onClick={() => { setGameMode('peer'); setAppState('lobby'); }}
-          >
-            <span>Play Local</span>
-            <span className="text-3xl">📡</span>
-          </button>
+          body {
+            font-family: 'Fredoka', sans-serif;
+            background: radial-gradient(#bae6fd 3px, transparent 3px), linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
+            background-size: 32px 32px, 100% 100%;
+            background-attachment: fixed;
+            margin: 0;
+            overflow-x: hidden;
+            user-select: none;
+          }
+
+          .cartoon-border { border: 4px solid #1e293b; }
+          .cartoon-shadow { box-shadow: 6px 6px 0px #1e293b; }
+          .cartoon-shadow-sm { box-shadow: 3px 3px 0px #1e293b; }
+          .cartoon-shadow-lg { box-shadow: 8px 10px 0px #1e293b; }
+
+          .cartoon-btn { transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
+          .cartoon-btn:hover { transform: translateY(-4px) scale(1.02); box-shadow: 6px 8px 0px #1e293b; filter: brightness(1.05); }
+          .cartoon-btn:active { transform: translateY(2px) scale(0.98); box-shadow: 2px 2px 0px #1e293b; }
+
+          .card-hover { transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+          .card-hover:hover { transform: translateY(-16px) rotate(-3deg) scale(1.05); z-index: 50 !important; }
+
+          .animate-bounce-slight { animation: bounceSlight 3s infinite ease-in-out; }
+          .animate-pulse-soft { animation: pulseSoft 2s infinite ease-in-out; }
+          .animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+          @keyframes bounceSlight {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+          }
           
-          <button className="cartoon-btn bg-slate-300 cartoon-border text-slate-500 font-black text-2xl py-4 px-6 rounded-2xl opacity-80 cursor-not-allowed flex flex-col items-center">
-            <span className="flex items-center space-x-2"><span>Worldwide</span> <span>🌍</span></span>
-            <span className="text-xs bg-slate-700 text-white px-3 py-1 rounded-full mt-2 tracking-widest uppercase shadow-inner">Coming Soon</span>
-          </button>
-
-          <button 
-            className="cartoon-btn bg-white cartoon-border text-slate-700 font-bold text-xl py-3 px-6 rounded-xl mt-6 hover:text-slate-900"
-            onClick={() => setAppState('rules')}
-          >
-            How to Play 📖
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (appState === 'rules') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <div className="bg-white cartoon-border cartoon-shadow rounded-3xl p-8 max-w-2xl w-full">
-          <h2 className="text-4xl font-black text-slate-800 mb-6 border-b-4 border-slate-200 pb-2">How to Play</h2>
-          <ul className="space-y-4 text-lg text-slate-700 font-semibold mb-8 list-disc pl-5">
-            <li>Your goal is to collect groups of 4 matching cards ("Books").</li>
-            <li>On your turn, click a card in your hand to ask your opponent if they have that rank.</li>
-            <li>If they have it, they give you all their cards of that rank, and you go again!</li>
-            <li>If they don't, they say "Go Fish!" and you draw a card from the deck.</li>
-            <li>If you draw the card you asked for, you go again! Otherwise, your turn ends.</li>
-            <li>The game ends when all 13 books are collected. The player with the most books wins!</li>
-          </ul>
-          <button 
-            className="cartoon-btn w-full bg-yellow-400 cartoon-border text-slate-900 font-bold text-2xl py-4 rounded-2xl"
-            onClick={() => setAppState('menu')}
-          >
-            Got it! Let's Play 🎣
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (appState === 'lobby') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        {!peerLoaded && <p className="text-xl font-bold mb-4">Loading Network...</p>}
-        
-        <div className="bg-white cartoon-border cartoon-shadow rounded-3xl p-8 max-w-md w-full text-center">
-          <h2 className="text-4xl font-black text-slate-800 mb-6">Multiplayer</h2>
+          @keyframes pulseSoft {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+          }
           
-          {connectionStatus ? (
-            <div className="py-8">
-              <div className="animate-spin text-4xl mb-4">⚙️</div>
-              <p className="text-2xl font-bold text-slate-700">{connectionStatus}</p>
-              {isHost && <p className="text-5xl font-black tracking-widest text-indigo-500 mt-4">{peerCode}</p>}
+          @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px) scale(0.95); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+          }
+
+          /* Custom scrollbar for message log */
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+          ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; border: 2px solid #1e293b; }
+          ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        `;
+
+        // --- GAME LOGIC CONSTANTS ---
+        const SUITS = [
+          { id: 'H', symbol: '♥', color: 'text-rose-500' },
+          { id: 'D', symbol: '♦', color: 'text-rose-500' },
+          { id: 'C', symbol: '♣', color: 'text-slate-800' },
+          { id: 'S', symbol: '♠', color: 'text-slate-800' }
+        ];
+        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        const createDeck = () => {
+          let deck = [];
+          for (let suit of SUITS) {
+            for (let rank of RANKS) {
+              deck.push({ id: `${suit.id}-${rank}`, rank, suit: suit.symbol, color: suit.color });
+            }
+          }
+          // Shuffle
+          for (let i = deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [deck[i], deck[j]] = [deck[j], deck[i]];
+          }
+          return deck;
+        };
+
+        // --- MAIN COMPONENT ---
+        function App() {
+          const [peerLoaded, setPeerLoaded] = useState(false);
+          
+          // App States: 'menu', 'rules', 'lobby', 'playing'
+          const [appState, setAppState] = useState('menu');
+          const [gameMode, setGameMode] = useState(null); // 'ai', 'peer'
+          
+          // PeerJS Refs & State
+          const peerRef = useRef(null);
+          const connRef = useRef(null);
+          const [peerCode, setPeerCode] = useState('');
+          const [joinCodeInput, setJoinCodeInput] = useState('');
+          const [isHost, setIsHost] = useState(false);
+          const [connectionStatus, setConnectionStatus] = useState('');
+
+          // Host/AI Game State (The single source of truth)
+          const [matchState, setMatchState] = useState({
+            deck: [],
+            playerHand: [],
+            opponentHand: [],
+            playerBooks: [],
+            opponentBooks: [],
+            turn: 'player', // 'player' or 'opponent'
+            messages: [],
+            gameOver: false
+          });
+
+          // Guest State (Received from Host)
+          const [guestState, setGuestState] = useState(null);
+
+          // --- 1. INITIALIZATION ---
+          useEffect(() => {
+            // Load PeerJS dynamically for P2P multiplayer
+            if (!window.Peer) {
+              const script = document.createElement('script');
+              script.src = "https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js";
+              script.onload = () => setPeerLoaded(true);
+              document.head.appendChild(script);
+            } else {
+              setPeerLoaded(true);
+            }
+            
+            // Inject Custom Styles
+            const styleSheet = document.createElement("style");
+            styleSheet.innerText = globalStyles;
+            document.head.appendChild(styleSheet);
+            
+            return () => { document.head.removeChild(styleSheet); };
+          }, []);
+
+          // --- 2. GAME ENGINE LOGIC (Run by Host / AI) ---
+          const processAsk = (state, asker, target, rank) => {
+            let draft = JSON.parse(JSON.stringify(state)); 
+            let newMessages = [];
+            
+            const askerName = asker === 'player' ? 'You' : 'Opponent';
+            const targetName = target === 'player' ? 'You' : 'Opponent';
+
+            newMessages.push(`${askerName} asked for ${rank}s.`);
+
+            let targetHand = draft[`${target}Hand`];
+            let askerHand = draft[`${asker}Hand`];
+
+            const matchingCards = targetHand.filter(c => c.rank === rank);
+            targetHand = targetHand.filter(c => c.rank !== rank);
+            draft[`${target}Hand`] = targetHand;
+
+            if (matchingCards.length > 0) {
+              newMessages.push(`${targetName} had ${matchingCards.length}!`);
+              draft[`${asker}Hand`].push(...matchingCards);
+              draft.turn = asker; // Keep turn
+            } else {
+              newMessages.push(`${targetName}: "Go Fish!"`);
+              if (draft.deck.length > 0) {
+                const drawnCard = draft.deck.pop();
+                draft[`${asker}Hand`].push(drawnCard);
+                
+                if (asker === 'player') {
+                  newMessages.push(`You fished a ${drawnCard.rank}.`);
+                } else {
+                  newMessages.push(`Opponent fished a card.`);
+                }
+
+                if (drawnCard.rank === rank) {
+                  newMessages.push(`${askerName} fished exactly what they wanted!`);
+                  draft.turn = asker;
+                } else {
+                  draft.turn = target; // Pass turn
+                }
+              } else {
+                newMessages.push(`The deck is empty!`);
+                draft.turn = target; // Pass turn
+              }
+            }
+
+            // Check for books (4 of a kind)
+            const checkBooks = (playerType, name) => {
+              let hand = draft[`${playerType}Hand`];
+              let books = draft[`${playerType}Books`];
+              const rankCounts = {};
+              hand.forEach(c => { rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1; });
+              
+              for (const r in rankCounts) {
+                if (rankCounts[r] === 4) {
+                  newMessages.push(`${name} completed a book of ${r}s!`);
+                  books.push(r);
+                  draft[`${playerType}Hand`] = hand.filter(c => c.rank !== r);
+                }
+              }
+            };
+
+            checkBooks('player', 'You');
+            checkBooks('opponent', 'Opponent');
+
+            // Rule: Empty hand draws up to 5 cards (if deck has them)
+            const refillHand = (playerType, name) => {
+              if (draft[`${playerType}Hand`].length === 0 && draft.deck.length > 0) {
+                const cardsToDraw = Math.min(5, draft.deck.length);
+                const drawn = draft.deck.splice(-cardsToDraw, cardsToDraw);
+                draft[`${playerType}Hand`].push(...drawn);
+                newMessages.push(`${name} drew ${cardsToDraw} cards to refill hand.`);
+              }
+            };
+
+            refillHand('player', 'You');
+            refillHand('opponent', 'Opponent');
+
+            // Check Game Over condition
+            if (draft.playerBooks.length + draft.opponentBooks.length === 13 || 
+                (draft.deck.length === 0 && (draft.playerHand.length === 0 || draft.opponentHand.length === 0))) {
+              draft.gameOver = true;
+              
+              let pScore = draft.playerBooks.length;
+              let oScore = draft.opponentBooks.length;
+              if (pScore > oScore) newMessages.push("Game Over! You Win! 🎉");
+              else if (oScore > pScore) newMessages.push("Game Over! Opponent Wins!");
+              else newMessages.push("Game Over! It's a Tie!");
+            }
+
+            draft.messages = [...newMessages, ...draft.messages].slice(0, 15);
+            return draft;
+          };
+
+          const initializeGame = () => {
+            const newDeck = createDeck();
+            setMatchState({
+              deck: newDeck.slice(14), // Remaining after 14 cards dealt
+              playerHand: newDeck.slice(0, 7),
+              opponentHand: newDeck.slice(7, 14),
+              playerBooks: [],
+              opponentBooks: [],
+              turn: 'player',
+              messages: ['Game started! Your turn.'],
+              gameOver: false
+            });
+          };
+
+          // --- 3. AI LOGIC ---
+          useEffect(() => {
+            if (gameMode === 'ai' && matchState.turn === 'opponent' && !matchState.gameOver) {
+              const timer = setTimeout(() => {
+                const oppHand = matchState.opponentHand;
+                if (oppHand.length > 0) {
+                  const randomCard = oppHand[Math.floor(Math.random() * oppHand.length)];
+                  setMatchState(prev => processAsk(prev, 'opponent', 'player', randomCard.rank));
+                } else {
+                  // Edge case where opponent hand is empty but it's their turn (shouldn't happen with refill rule)
+                  setMatchState(prev => ({...prev, turn: 'player'}));
+                }
+              }, 1800); // 1.8s delay to simulate thinking
+              return () => clearTimeout(timer);
+            }
+          }, [matchState.turn, gameMode, matchState.gameOver]);
+
+          // --- 4. MULTIPLAYER (PEERJS) LOGIC ---
+          const generatePeerCode = () => {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+          };
+
+          const hostGame = () => {
+            if (!window.Peer) return;
+            const code = generatePeerCode();
+            setPeerCode(code);
+            setIsHost(true);
+            setConnectionStatus('Waiting for opponent...');
+            
+            const peer = new window.Peer(`gofish-game-${code}`);
+            peerRef.current = peer;
+
+            peer.on('connection', (conn) => {
+              connRef.current = conn;
+              setupConnection(conn, true);
+            });
+          };
+
+          const joinGame = () => {
+            if (!window.Peer || joinCodeInput.length !== 4) return;
+            setIsHost(false);
+            setConnectionStatus('Connecting...');
+            
+            const peer = new window.Peer();
+            peerRef.current = peer;
+
+            peer.on('open', () => {
+              const conn = peer.connect(`gofish-game-${joinCodeInput}`);
+              connRef.current = conn;
+              setupConnection(conn, false);
+            });
+          };
+
+          const setupConnection = (conn, isHostRole) => {
+            conn.on('open', () => {
+              setConnectionStatus('Connected! Starting game...');
+              setTimeout(() => {
+                setAppState('playing');
+                if (isHostRole) initializeGame();
+              }, 1000);
+            });
+
+            conn.on('data', (data) => {
+              if (data.type === 'SYNC' && !isHostRole) {
+                setGuestState(data.state);
+              } else if (data.type === 'ASK' && isHostRole) {
+                // Guest asked for a card
+                setMatchState(prev => processAsk(prev, 'opponent', 'player', data.rank));
+              }
+            });
+
+            conn.on('close', () => {
+              alert("Connection lost!");
+              resetGame();
+            });
+          };
+
+          // Sync Host State to Guest whenever matchState changes
+          useEffect(() => {
+            if (gameMode === 'peer' && isHost && connRef.current && appState === 'playing') {
+              const stateForGuest = {
+                deckCount: matchState.deck.length,
+                myHand: matchState.opponentHand, // Guest's hand is Host's opponentHand
+                opponentHandCount: matchState.playerHand.length,
+                myBooks: matchState.opponentBooks,
+                opponentBooks: matchState.playerBooks,
+                isMyTurn: matchState.turn === 'opponent',
+                messages: matchState.messages,
+                gameOver: matchState.gameOver
+              };
+              connRef.current.send({ type: 'SYNC', state: stateForGuest });
+            }
+          }, [matchState, gameMode, isHost, appState]);
+
+          // --- 5. UI INTERACTIONS ---
+          const handleAskCard = (rank) => {
+            if (uiState.gameOver || !uiState.isMyTurn) return;
+
+            if (gameMode === 'ai' || isHost) {
+              setMatchState(prev => processAsk(prev, 'player', 'opponent', rank));
+            } else if (gameMode === 'peer' && !isHost) {
+              // Send action to Host
+              connRef.current.send({ type: 'ASK', rank });
+              // Optimistically assume turn is over temporarily to prevent double clicks
+              setGuestState(prev => ({...prev, isMyTurn: false})); 
+            }
+          };
+
+          const resetGame = () => {
+            if (peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
+            connRef.current = null;
+            setAppState('menu');
+            setGameMode(null);
+            setGuestState(null);
+          };
+
+          // --- 6. DERIVED UI STATE ---
+          let uiState = {
+            myHand: [], opponentHandCount: 0, myBooks: [], opponentBooks: [],
+            deckCount: 0, isMyTurn: false, messages: [], gameOver: false,
+          };
+
+          if (gameMode === 'ai' || isHost) {
+            uiState = {
+              myHand: matchState.playerHand,
+              opponentHandCount: matchState.opponentHand.length,
+              myBooks: matchState.playerBooks,
+              opponentBooks: matchState.opponentBooks,
+              deckCount: matchState.deck.length,
+              isMyTurn: matchState.turn === 'player',
+              messages: matchState.messages,
+              gameOver: matchState.gameOver
+            };
+          } else if (guestState) {
+            uiState = guestState;
+          }
+
+          // --- 7. COMPONENTS ---
+          
+          const Card = ({ card, onClick, selectable, mini }) => {
+            return (
+              <div 
+                onClick={selectable ? onClick : undefined}
+                className={`bg-slate-50 cartoon-border rounded-xl flex flex-col justify-between p-1 sm:p-2 
+                  ${mini ? 'w-14 h-20 text-sm' : 'w-20 h-28 sm:w-28 sm:h-40 text-xl sm:text-2xl'} 
+                  ${selectable ? 'cursor-pointer card-hover cartoon-shadow hover:bg-white' : 'cartoon-shadow-sm opacity-95'} 
+                  ${card.color} transition-all relative shrink-0`}
+              >
+                <div className="flex flex-col items-center leading-none self-start">
+                  <span className="font-black">{card.rank}</span>
+                  <span className="text-[0.6em] sm:text-sm mt-0.5">{card.suit}</span>
+                </div>
+                
+                <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                    <span className="text-6xl sm:text-8xl">{card.suit}</span>
+                </div>
+                <span className="self-center text-3xl sm:text-5xl drop-shadow-sm z-10">{card.suit}</span>
+                
+                <div className="flex flex-col items-center leading-none self-end rotate-180">
+                  <span className="font-black">{card.rank}</span>
+                  <span className="text-[0.6em] sm:text-sm mt-0.5">{card.suit}</span>
+                </div>
+              </div>
+            );
+          };
+
+          const CardBack = ({ mini }) => (
+            <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 cartoon-border rounded-xl flex items-center justify-center
+              ${mini ? 'w-14 h-20' : 'w-20 h-28 sm:w-28 sm:h-40'} cartoon-shadow-sm shrink-0 overflow-hidden relative`}
+            >
+              <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.4) 1px, transparent 0)', backgroundSize: '8px 8px' }}></div>
+              <div className="text-white text-3xl sm:text-4xl drop-shadow-md z-10 animate-bounce-slight" style={{ animationDuration: '4s' }}>🐟</div>
             </div>
-          ) : (
-            <>
-              <div className="mb-8 p-6 bg-slate-100 rounded-2xl cartoon-border border-2">
-                <h3 className="font-bold text-xl text-slate-700 mb-2">Host a Game</h3>
-                <button 
-                  onClick={hostGame} disabled={!peerLoaded}
-                  className="cartoon-btn w-full bg-green-400 cartoon-border text-slate-900 font-bold text-xl py-3 rounded-xl"
-                >
-                  Create Code
-                </button>
-              </div>
+          );
 
-              <div className="relative flex items-center justify-center mb-8">
-                <div className="border-t-4 border-slate-200 w-full"></div>
-                <span className="bg-white px-4 font-bold text-slate-400 absolute">OR</span>
-              </div>
+          // --- RENDERS ---
 
-              <div className="p-6 bg-slate-100 rounded-2xl cartoon-border border-2">
-                <h3 className="font-bold text-xl text-slate-700 mb-2">Join a Game</h3>
-                <input 
-                  type="text" 
-                  maxLength={4}
-                  placeholder="4-Digit Code"
-                  className="w-full cartoon-border text-center text-3xl font-black tracking-widest p-3 rounded-xl mb-4 outline-none focus:ring-4 focus:ring-indigo-300"
-                  value={joinCodeInput}
-                  onChange={(e) => setJoinCodeInput(e.target.value.replace(/\D/g, ''))}
-                />
-                <button 
-                  onClick={joinGame} disabled={!peerLoaded || joinCodeInput.length !== 4}
-                  className="cartoon-btn w-full bg-blue-400 cartoon-border text-slate-900 font-bold text-xl py-3 rounded-xl disabled:opacity-50"
-                >
-                  Join Game
-                </button>
-              </div>
-            </>
-          )}
+          if (appState === 'menu') {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                {/* Background decorative elements */}
+                <div className="absolute top-10 left-10 opacity-30 rotate-[-15deg]"><CardBack mini /></div>
+                <div className="absolute bottom-20 right-10 opacity-30 rotate-[20deg]"><CardBack mini /></div>
 
-          <button 
-            className="text-slate-500 font-bold hover:text-slate-800 mt-4 underline decoration-2 underline-offset-4"
-            onClick={resetGame}
-          >
-            Back to Menu
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // --- PLAYING SCREEN ---
-  return (
-    <div className="min-h-screen flex flex-col md:flex-row p-2 sm:p-4 gap-4 max-w-[1600px] mx-auto">
-      
-      {/* LEFT AREA: Game Board */}
-      <div className="flex-1 flex flex-col justify-between relative bg-white/60 backdrop-blur-sm cartoon-border rounded-3xl p-4 sm:p-8 overflow-hidden shadow-xl">
-        
-        {/* Opponent Area */}
-        <div className="flex flex-col items-center">
-          <div className="flex items-center space-x-4 bg-slate-800 text-white px-6 py-2 rounded-full cartoon-border cartoon-shadow-sm mb-6">
-            <span className="font-bold text-lg">Opponent</span>
-            <span className="bg-rose-500 px-3 py-1 rounded-full text-sm font-black cartoon-border border-2">Score: {uiState.opponentBooks.length}</span>
-          </div>
-          
-          <div className="flex justify-center flex-wrap gap-[-20px] sm:space-x-[-45px]">
-            {Array.from({ length: uiState.opponentHandCount }).map((_, i) => (
-              <div key={i} className={`relative transition-all duration-300 ${i !== 0 ? '-ml-10 sm:-ml-14' : ''}`} style={{ zIndex: i }}>
-                <CardBack />
-              </div>
-            ))}
-            {uiState.opponentHandCount === 0 && (
-              <div className="h-28 sm:h-40 flex items-center justify-center opacity-50 font-bold text-slate-600 bg-slate-200/50 rounded-xl px-8 border-2 border-dashed border-slate-400">Empty Hand</div>
-            )}
-          </div>
-        </div>
-
-        {/* Center Area: Deck & Status */}
-        <div className="flex items-center justify-center py-12 relative">
-          
-          {/* Deck Area */}
-          <div className="absolute left-2 sm:left-10 top-1/2 -translate-y-1/2 flex items-center space-x-4">
-             <div className="relative group cursor-pointer" title={`${uiState.deckCount} cards left`}>
-                {uiState.deckCount > 2 && <div className="absolute top-2 left-2 transition-transform group-hover:-translate-y-1 group-hover:-translate-x-1"><CardBack /></div>}
-                {uiState.deckCount > 1 && <div className="absolute top-1 left-1 transition-transform group-hover:-translate-y-0.5 group-hover:-translate-x-0.5"><CardBack /></div>}
-                {uiState.deckCount > 0 ? <CardBack /> : (
-                  <div className="w-20 h-28 sm:w-28 sm:h-40 border-4 border-dashed border-slate-400 rounded-xl flex items-center justify-center opacity-50 bg-slate-100/50">
-                    <span className="font-bold text-slate-500">Empty</span>
-                  </div>
-                )}
-                {uiState.deckCount > 0 && (
-                  <div className="absolute -bottom-4 -right-4 bg-yellow-400 cartoon-border text-sm font-black rounded-full w-10 h-10 flex items-center justify-center cartoon-shadow-sm z-10">
-                    {uiState.deckCount}
-                  </div>
-                )}
-             </div>
-          </div>
-
-          {/* Turn Indicator */}
-          <div className={`px-10 py-5 rounded-3xl cartoon-border shadow-xl transition-all duration-300 ${
-            uiState.gameOver ? 'bg-purple-500 scale-110 animate-bounce-slight' :
-            uiState.isMyTurn ? 'bg-green-400 animate-pulse-soft cartoon-shadow-lg' : 'bg-rose-400 opacity-90 scale-95'
-          }`}>
-            <h2 className={`text-2xl sm:text-4xl font-black ${uiState.gameOver ? 'text-white' : 'text-slate-900'} tracking-wide`}>
-              {uiState.gameOver ? 'GAME OVER!' : (uiState.isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN")}
-            </h2>
-          </div>
-        </div>
-
-        {/* Player Area */}
-        <div className="flex flex-col items-center">
-          <div className="flex justify-center flex-wrap px-2 pt-10 pb-4">
-            {uiState.myHand.map((card, i) => (
-              <div key={card.id} className={`relative transition-all duration-300 ${i !== 0 ? '-ml-8 sm:-ml-12' : ''}`} style={{ zIndex: i }}>
-                <Card 
-                  card={card} 
-                  selectable={uiState.isMyTurn && !uiState.gameOver} 
-                  onClick={() => handleAskCard(card.rank)}
-                />
-              </div>
-            ))}
-            {uiState.myHand.length === 0 && (
-              <div className="h-28 sm:h-40 flex items-center justify-center opacity-50 font-bold text-slate-600 bg-slate-200/50 rounded-xl px-8 border-2 border-dashed border-slate-400">Empty Hand</div>
-            )}
-          </div>
-          
-          <div className="flex items-center space-x-4 bg-white px-8 py-2 rounded-full cartoon-border cartoon-shadow-sm mt-4">
-            <span className="font-bold text-slate-800 text-lg">You</span>
-            <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-black cartoon-border border-2">Score: {uiState.myBooks.length}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT AREA: Logs & Books */}
-      <div className="w-full md:w-80 lg:w-96 flex flex-col gap-4">
-        
-        {/* Books / Scoreboard */}
-        <div className="bg-white/80 backdrop-blur-sm cartoon-border cartoon-shadow-sm rounded-3xl p-5">
-          <h3 className="font-black text-2xl text-slate-800 mb-4 text-center border-b-4 border-slate-200 pb-2">Books</h3>
-          
-          <div className="flex flex-col gap-5">
-             <div className="bg-rose-50 p-3 rounded-2xl border-2 border-rose-100">
-                <p className="text-sm font-bold text-rose-500 mb-2 uppercase tracking-wider">Opponent's Books</p>
-                <div className="flex flex-wrap gap-2">
-                  {uiState.opponentBooks.map((rank, i) => (
-                    <div key={i} className="w-10 h-10 bg-white cartoon-border border-2 rounded-lg flex items-center justify-center font-black text-rose-500 shadow-sm">{rank}</div>
-                  ))}
-                  {uiState.opponentBooks.length === 0 && <span className="text-rose-300 text-sm font-bold italic">None yet...</span>}
+                <div className="relative flex justify-center space-x-[-20px] animate-bounce-slight mb-8 mt-12">
+                  <div className="rotate-[-15deg] translate-y-4"><CardBack mini/></div>
+                  <div className="z-10 translate-y-[-10px] scale-110"><Card card={{rank: 'A', suit: '♠', color:'text-slate-800'}} selectable={false} mini/></div>
+                  <div className="rotate-[15deg] translate-y-4"><Card card={{rank: 'K', suit: '♥', color:'text-rose-500'}} selectable={false} mini/></div>
                 </div>
-             </div>
-             
-             <div className="bg-indigo-50 p-3 rounded-2xl border-2 border-indigo-100">
-                <p className="text-sm font-bold text-indigo-500 mb-2 uppercase tracking-wider">Your Books</p>
-                <div className="flex flex-wrap gap-2">
-                  {uiState.myBooks.map((rank, i) => (
-                    <div key={i} className="w-10 h-10 bg-white cartoon-border border-2 rounded-lg flex items-center justify-center font-black text-indigo-600 shadow-sm">{rank}</div>
-                  ))}
-                  {uiState.myBooks.length === 0 && <span className="text-indigo-300 text-sm font-bold italic">None yet...</span>}
+
+                <h1 className="text-7xl md:text-9xl font-black text-white cartoon-shadow-lg text-center mb-16 tracking-wider" style={{WebkitTextStroke: '4px #1e293b'}}>
+                  GO FISH!
+                </h1>
+
+                <div className="flex flex-col space-y-5 w-full max-w-sm z-10">
+                  <button 
+                    className="cartoon-btn bg-gradient-to-b from-yellow-300 to-yellow-500 cartoon-border text-slate-900 font-black text-2xl py-4 px-6 rounded-2xl flex items-center justify-center space-x-3"
+                    onClick={() => { setGameMode('ai'); initializeGame(); setAppState('playing'); }}
+                  >
+                    <span>Play vs AI</span>
+                    <span className="text-3xl">🤖</span>
+                  </button>
+                  
+                  <button 
+                    className="cartoon-btn bg-gradient-to-b from-green-300 to-green-500 cartoon-border text-slate-900 font-black text-2xl py-4 px-6 rounded-2xl flex justify-between items-center"
+                    onClick={() => { setGameMode('peer'); setAppState('lobby'); }}
+                  >
+                    <span>Play Local</span>
+                    <span className="text-3xl">📡</span>
+                  </button>
+                  
+                  <button className="cartoon-btn bg-slate-300 cartoon-border text-slate-500 font-black text-2xl py-4 px-6 rounded-2xl opacity-80 cursor-not-allowed flex flex-col items-center">
+                    <span className="flex items-center space-x-2"><span>Worldwide</span> <span>🌍</span></span>
+                    <span className="text-xs bg-slate-700 text-white px-3 py-1 rounded-full mt-2 tracking-widest uppercase shadow-inner">Coming Soon</span>
+                  </button>
+
+                  <button 
+                    className="cartoon-btn bg-white cartoon-border text-slate-700 font-bold text-xl py-3 px-6 rounded-xl mt-6 hover:text-slate-900"
+                    onClick={() => setAppState('rules')}
+                  >
+                    How to Play 📖
+                  </button>
                 </div>
-             </div>
-          </div>
-        </div>
+              </div>
+            );
+          }
 
-        {/* Activity Log */}
-        <div className="bg-slate-800 cartoon-border cartoon-shadow-sm rounded-3xl p-5 flex-1 flex flex-col min-h-[250px] max-h-[300px] md:max-h-none relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-slate-800 to-transparent z-10 pointer-events-none"></div>
-          <h3 className="font-black text-xl text-white mb-3 relative z-20 flex items-center gap-2">
-            <span>📝</span> Activity Log
-          </h3>
-          <div className="flex-1 overflow-y-auto flex flex-col-reverse space-y-reverse space-y-3 pr-2 relative z-20">
-             {uiState.messages.map((msg, i) => (
-               <div key={i} className={`animate-slide-in p-3 rounded-2xl font-bold text-sm leading-relaxed shadow-sm
-                 ${i === 0 
-                   ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-slate-900 border-2 border-slate-900' 
-                   : 'bg-slate-700 text-slate-200 border-2 border-slate-600'}`}>
-                 {msg}
-               </div>
-             ))}
-          </div>
-        </div>
-        
-        {/* Actions */}
-        <button 
-          onClick={resetGame}
-          className="cartoon-btn bg-white cartoon-border text-slate-800 font-black text-lg py-4 rounded-2xl hover:bg-rose-100 hover:text-rose-600 transition-colors"
-        >
-          Quit Game 🚪
-        </button>
+          if (appState === 'rules') {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                <div className="bg-white cartoon-border cartoon-shadow rounded-3xl p-8 max-w-2xl w-full">
+                  <h2 className="text-4xl font-black text-slate-800 mb-6 border-b-4 border-slate-200 pb-2">How to Play</h2>
+                  <ul className="space-y-4 text-lg text-slate-700 font-semibold mb-8 list-disc pl-5">
+                    <li>Your goal is to collect groups of 4 matching cards ("Books").</li>
+                    <li>On your turn, click a card in your hand to ask your opponent if they have that rank.</li>
+                    <li>If they have it, they give you all their cards of that rank, and you go again!</li>
+                    <li>If they don't, they say "Go Fish!" and you draw a card from the deck.</li>
+                    <li>If you draw the card you asked for, you go again! Otherwise, your turn ends.</li>
+                    <li>The game ends when all 13 books are collected. The player with the most books wins!</li>
+                  </ul>
+                  <button 
+                    className="cartoon-btn w-full bg-yellow-400 cartoon-border text-slate-900 font-bold text-2xl py-4 rounded-2xl"
+                    onClick={() => setAppState('menu')}
+                  >
+                    Got it! Let's Play 🎣
+                  </button>
+                </div>
+              </div>
+            );
+          }
 
-      </div>
-    </div>
-  );
-}
+          if (appState === 'lobby') {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                {!peerLoaded && <p className="text-xl font-bold mb-4">Loading Network...</p>}
+                
+                <div className="bg-white cartoon-border cartoon-shadow rounded-3xl p-8 max-w-md w-full text-center">
+                  <h2 className="text-4xl font-black text-slate-800 mb-6">Multiplayer</h2>
+                  
+                  {connectionStatus ? (
+                    <div className="py-8">
+                      <div className="animate-spin text-4xl mb-4">⚙️</div>
+                      <p className="text-2xl font-bold text-slate-700">{connectionStatus}</p>
+                      {isHost && <p className="text-5xl font-black tracking-widest text-indigo-500 mt-4">{peerCode}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-8 p-6 bg-slate-100 rounded-2xl cartoon-border border-2">
+                        <h3 className="font-bold text-xl text-slate-700 mb-2">Host a Game</h3>
+                        <button 
+                          onClick={hostGame} disabled={!peerLoaded}
+                          className="cartoon-btn w-full bg-green-400 cartoon-border text-slate-900 font-bold text-xl py-3 rounded-xl"
+                        >
+                          Create Code
+                        </button>
+                      </div>
+
+                      <div className="relative flex items-center justify-center mb-8">
+                        <div className="border-t-4 border-slate-200 w-full"></div>
+                        <span className="bg-white px-4 font-bold text-slate-400 absolute">OR</span>
+                      </div>
+
+                      <div className="p-6 bg-slate-100 rounded-2xl cartoon-border border-2">
+                        <h3 className="font-bold text-xl text-slate-700 mb-2">Join a Game</h3>
+                        <input 
+                          type="text" 
+                          maxLength={4}
+                          placeholder="4-Digit Code"
+                          className="w-full cartoon-border text-center text-3xl font-black tracking-widest p-3 rounded-xl mb-4 outline-none focus:ring-4 focus:ring-indigo-300"
+                          value={joinCodeInput}
+                          onChange={(e) => setJoinCodeInput(e.target.value.replace(/\D/g, ''))}
+                        />
+                        <button 
+                          onClick={joinGame} disabled={!peerLoaded || joinCodeInput.length !== 4}
+                          className="cartoon-btn w-full bg-blue-400 cartoon-border text-slate-900 font-bold text-xl py-3 rounded-xl disabled:opacity-50"
+                        >
+                          Join Game
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  <button 
+                    className="text-slate-500 font-bold hover:text-slate-800 mt-4 underline decoration-2 underline-offset-4"
+                    onClick={resetGame}
+                  >
+                    Back to Menu
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          // --- PLAYING SCREEN ---
+          return (
+            <div className="min-h-screen flex flex-col md:flex-row p-2 sm:p-4 gap-4 max-w-[1600px] mx-auto">
+              
+              {/* LEFT AREA: Game Board */}
+              <div className="flex-1 flex flex-col justify-between relative bg-white/60 backdrop-blur-sm cartoon-border rounded-3xl p-4 sm:p-8 overflow-hidden shadow-xl">
+                
+                {/* Opponent Area */}
+                <div className="flex flex-col items-center">
+                  <div className="flex items-center space-x-4 bg-slate-800 text-white px-6 py-2 rounded-full cartoon-border cartoon-shadow-sm mb-6">
+                    <span className="font-bold text-lg">Opponent</span>
+                    <span className="bg-rose-500 px-3 py-1 rounded-full text-sm font-black cartoon-border border-2">Score: {uiState.opponentBooks.length}</span>
+                  </div>
+                  
+                  <div className="flex justify-center flex-wrap gap-[-20px] sm:space-x-[-45px]">
+                    {Array.from({ length: uiState.opponentHandCount }).map((_, i) => (
+                      <div key={i} className={`relative transition-all duration-300 ${i !== 0 ? '-ml-10 sm:-ml-14' : ''}`} style={{ zIndex: i }}>
+                        <CardBack />
+                      </div>
+                    ))}
+                    {uiState.opponentHandCount === 0 && (
+                      <div className="h-28 sm:h-40 flex items-center justify-center opacity-50 font-bold text-slate-600 bg-slate-200/50 rounded-xl px-8 border-2 border-dashed border-slate-400">Empty Hand</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Center Area: Deck & Status */}
+                <div className="flex items-center justify-center py-12 relative">
+                  
+                  {/* Deck Area */}
+                  <div className="absolute left-2 sm:left-10 top-1/2 -translate-y-1/2 flex items-center space-x-4">
+                     <div className="relative group cursor-pointer" title={`${uiState.deckCount} cards left`}>
+                        {uiState.deckCount > 2 && <div className="absolute top-2 left-2 transition-transform group-hover:-translate-y-1 group-hover:-translate-x-1"><CardBack /></div>}
+                        {uiState.deckCount > 1 && <div className="absolute top-1 left-1 transition-transform group-hover:-translate-y-0.5 group-hover:-translate-x-0.5"><CardBack /></div>}
+                        {uiState.deckCount > 0 ? <CardBack /> : (
+                          <div className="w-20 h-28 sm:w-28 sm:h-40 border-4 border-dashed border-slate-400 rounded-xl flex items-center justify-center opacity-50 bg-slate-100/50">
+                            <span className="font-bold text-slate-500">Empty</span>
+                          </div>
+                        )}
+                        {uiState.deckCount > 0 && (
+                          <div className="absolute -bottom-4 -right-4 bg-yellow-400 cartoon-border text-sm font-black rounded-full w-10 h-10 flex items-center justify-center cartoon-shadow-sm z-10">
+                            {uiState.deckCount}
+                          </div>
+                        )}
+                     </div>
+                  </div>
+
+                  {/* Turn Indicator */}
+                  <div className={`px-10 py-5 rounded-3xl cartoon-border shadow-xl transition-all duration-300 ${
+                    uiState.gameOver ? 'bg-purple-500 scale-110 animate-bounce-slight' :
+                    uiState.isMyTurn ? 'bg-green-400 animate-pulse-soft cartoon-shadow-lg' : 'bg-rose-400 opacity-90 scale-95'
+                  }`}>
+                    <h2 className={`text-2xl sm:text-4xl font-black ${uiState.gameOver ? 'text-white' : 'text-slate-900'} tracking-wide`}>
+                      {uiState.gameOver ? 'GAME OVER!' : (uiState.isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN")}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Player Area */}
+                <div className="flex flex-col items-center">
+                  <div className="flex justify-center flex-wrap px-2 pt-10 pb-4">
+                    {uiState.myHand.map((card, i) => (
+                      <div key={card.id} className={`relative transition-all duration-300 ${i !== 0 ? '-ml-8 sm:-ml-12' : ''}`} style={{ zIndex: i }}>
+                        <Card 
+                          card={card} 
+                          selectable={uiState.isMyTurn && !uiState.gameOver} 
+                          onClick={() => handleAskCard(card.rank)}
+                        />
+                      </div>
+                    ))}
+                    {uiState.myHand.length === 0 && (
+                      <div className="h-28 sm:h-40 flex items-center justify-center opacity-50 font-bold text-slate-600 bg-slate-200/50 rounded-xl px-8 border-2 border-dashed border-slate-400">Empty Hand</div>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center space-x-4 bg-white px-8 py-2 rounded-full cartoon-border cartoon-shadow-sm mt-4">
+                    <span className="font-bold text-slate-800 text-lg">You</span>
+                    <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-black cartoon-border border-2">Score: {uiState.myBooks.length}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT AREA: Logs & Books */}
+              <div className="w-full md:w-80 lg:w-96 flex flex-col gap-4">
+                
+                {/* Books / Scoreboard */}
+                <div className="bg-white/80 backdrop-blur-sm cartoon-border cartoon-shadow-sm rounded-3xl p-5">
+                  <h3 className="font-black text-2xl text-slate-800 mb-4 text-center border-b-4 border-slate-200 pb-2">Books</h3>
+                  
+                  <div className="flex flex-col gap-5">
+                     <div className="bg-rose-50 p-3 rounded-2xl border-2 border-rose-100">
+                        <p className="text-sm font-bold text-rose-500 mb-2 uppercase tracking-wider">Opponent's Books</p>
+                        <div className="flex flex-wrap gap-2">
+                          {uiState.opponentBooks.map((rank, i) => (
+                            <div key={i} className="w-10 h-10 bg-white cartoon-border border-2 rounded-lg flex items-center justify-center font-black text-rose-500 shadow-sm">{rank}</div>
+                          ))}
+                          {uiState.opponentBooks.length === 0 && <span className="text-rose-300 text-sm font-bold italic">None yet...</span>}
+                        </div>
+                     </div>
+                     
+                     <div className="bg-indigo-50 p-3 rounded-2xl border-2 border-indigo-100">
+                        <p className="text-sm font-bold text-indigo-500 mb-2 uppercase tracking-wider">Your Books</p>
+                        <div className="flex flex-wrap gap-2">
+                          {uiState.myBooks.map((rank, i) => (
+                            <div key={i} className="w-10 h-10 bg-white cartoon-border border-2 rounded-lg flex items-center justify-center font-black text-indigo-600 shadow-sm">{rank}</div>
+                          ))}
+                          {uiState.myBooks.length === 0 && <span className="text-indigo-300 text-sm font-bold italic">None yet...</span>}
+                        </div>
+                     </div>
+                  </div>
+                </div>
+
+                {/* Activity Log */}
+                <div className="bg-slate-800 cartoon-border cartoon-shadow-sm rounded-3xl p-5 flex-1 flex flex-col min-h-[250px] max-h-[300px] md:max-h-none relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-slate-800 to-transparent z-10 pointer-events-none"></div>
+                  <h3 className="font-black text-xl text-white mb-3 relative z-20 flex items-center gap-2">
+                    <span>📝</span> Activity Log
+                  </h3>
+                  <div className="flex-1 overflow-y-auto flex flex-col-reverse space-y-reverse space-y-3 pr-2 relative z-20">
+                     {uiState.messages.map((msg, i) => (
+                       <div key={i} className={`animate-slide-in p-3 rounded-2xl font-bold text-sm leading-relaxed shadow-sm
+                         ${i === 0 
+                           ? 'bg-gradient-to-r from-yellow-300 to-yellow-400 text-slate-900 border-2 border-slate-900' 
+                           : 'bg-slate-700 text-slate-200 border-2 border-slate-600'}`}>
+                         {msg}
+                       </div>
+                     ))}
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <button 
+                  onClick={resetGame}
+                  className="cartoon-btn bg-white cartoon-border text-slate-800 font-black text-lg py-4 rounded-2xl hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                >
+                  Quit Game 🚪
+                </button>
+
+              </div>
+            </div>
+          );
+        }
 
         // Render the component into the DOM container
         const container = document.getElementById('root');
@@ -719,6 +721,5 @@ export default function App() {
         root.render(<App />);
 
     </script>
-
 </body>
 </html>
