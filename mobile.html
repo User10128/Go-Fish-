@@ -481,7 +481,8 @@
 
         if (gameMode === "ai" || isHost) {
           uiState = {
-            myHand: matchState.playerHand, opponentHandCount: matchState.opponentHand.length,
+            myHand: [...matchState.playerHand].sort((a, b) => RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)),
+            opponentHandCount: matchState.opponentHand.length,
             myBooks: matchState.playerBooks, opponentBooks: matchState.opponentBooks,
             deckCount: matchState.deck.length, isMyTurn: matchState.turn === "player",
             messages: matchState.messages, gameOver: matchState.gameOver, phase: matchState.phase,
@@ -492,7 +493,9 @@
           };
         } else if (guestState) {
           uiState = {
-            ...guestState, isMeAsker: guestState.currentAsk?.asker === "opponent",
+            ...guestState, 
+            myHand: [...guestState.myHand].sort((a, b) => RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)),
+            isMeAsker: guestState.currentAsk?.asker === "opponent",
             isMeTarget: guestState.currentAsk?.target === "opponent",
             hasRequestedCard: guestState.currentAsk && guestState.myHand.some((c) => c.rank === guestState.currentAsk.rank),
             currentAskRank: guestState.currentAsk?.rank,
