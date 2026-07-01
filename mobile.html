@@ -116,7 +116,7 @@
       };
 
       // --- SHARED UI COMPONENTS ---
-      const Modal = ({ msg, onClose }) => {
+      const AlertModal = ({ msg, onClose }) => {
         if (!msg) return null;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/70 animate-fade-in backdrop-blur-sm">
@@ -134,18 +134,13 @@
       const Card = ({ card, onClick, selectable }) => (
         <div 
           onClick={selectable ? onClick : undefined}
-          className={`bg-slate-50 cartoon-border rounded-xl flex flex-col justify-between p-2 w-20 h-28 text-xl shrink-0
+          className={`bg-slate-50 cartoon-border rounded-xl flex items-center justify-center p-2 w-20 h-28 text-xl shrink-0
             ${selectable ? 'cursor-pointer card-hover cartoon-shadow hover:bg-white' : 'cartoon-shadow-sm opacity-90'} 
-            ${card.color} relative`}
+            ${card.color}`}
         >
-          <div className="flex flex-col items-center leading-none self-start">
-            <span className="font-black">{card.rank}</span>
-            <span className="text-sm mt-0.5">{card.suit}</span>
-          </div>
-          <span className="self-center text-4xl drop-shadow-sm z-10">{card.suit}</span>
-          <div className="flex flex-col items-center leading-none self-end rotate-180">
-            <span className="font-black">{card.rank}</span>
-            <span className="text-sm mt-0.5">{card.suit}</span>
+          <div className="flex flex-col items-center leading-none">
+            <span className="font-black text-2xl">{card.rank}</span>
+            <span className="text-2xl mt-1">{card.suit}</span>
           </div>
         </div>
       );
@@ -512,8 +507,7 @@
                 <div className="rotate-12 translate-y-2"><CardBack mini/></div>
               </div>
 
-              <h1 className="text-6xl font-black text-blue-600 cartoon-shadow-sm mb-12 tracking-wide text-white" 
-                  style={{ textShadow: "4px 4px 0px #1e293b, -2px -2px 0px #1e293b, 2px -2px 0px #1e293b, -2px 2px 0px #1e293b" }}>
+              <h1 className="text-6xl font-black text-blue-600 mb-12 tracking-wide">
                 GO FISH!
               </h1>
 
@@ -648,9 +642,7 @@
                {/* Tiny overlapping hand representation */}
                <div className="flex justify-end -space-x-6 overflow-hidden max-w-[150px] pr-2">
                  {Array.from({ length: Math.min(uiState.opponentHandCount, 5) }).map((_, i) => (
-                   <div key={i} className="w-8 h-12 bg-indigo-500 cartoon-border border-2 rounded-md shadow-sm shrink-0 flex items-center justify-center">
-                     <span className="text-[8px]">🐟</span>
-                   </div>
+                   <div key={i} className="w-8 h-12 bg-indigo-500 cartoon-border border-2 rounded-md shadow-sm shrink-0"></div>
                  ))}
                  {uiState.opponentHandCount > 5 && (
                    <div className="z-10 w-8 h-8 rounded-full bg-slate-800 text-white text-xs font-bold flex items-center justify-center border-2 border-slate-800 self-center -ml-2">+{uiState.opponentHandCount - 5}</div>
@@ -731,7 +723,7 @@
                
                {/* Quick access log button */}
                <button onClick={() => setShowLogs(true)} className="absolute -top-5 left-1/2 -translate-x-1/2 bg-yellow-400 cartoon-border border-2 px-6 py-1 rounded-full shadow-md font-bold text-xs flex items-center gap-2">
-                 <span>{uiState.messages[0] ? '💬 ' + uiState.messages[0].substring(0,20)+'...' : 'Stats & Logs'}</span>
+                 <span>{uiState.messages[0] ? uiState.messages[0].substring(0,20)+'...' : 'Stats & Logs'}</span>
                </button>
 
                <div className="flex justify-between px-6 mb-2 text-white">
