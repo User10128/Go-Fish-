@@ -93,6 +93,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
+
+    <script>
+  if (typeof navigator.serviceWorker !== 'undefined') {
+    navigator.serviceWorker.register('sw.js')
+  }
+</script>
     <!-- 5. The HTML Container where React will render -->
     <div id="root"></div>
 
