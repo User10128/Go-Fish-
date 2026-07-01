@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Go Fish! - Mobile</title>
+
+    <!-- 1. Load Firebase SDK -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+      import {
+        getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, deleteDoc,
+      } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+      import {
+        getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+      let firebaseConfig;
+      try {
+        firebaseConfig = JSON.parse(__firebase_config);
+      } catch (e) {
+        firebaseConfig = {
+          apiKey: "AIzaSyD7C-cYXzXwDOYj_GirtC9NvToMbs3HSVk",
+          authDomain: "flutter-ai-playground-f5543.firebaseapp.com",
+          projectId: "flutter-ai-playground-f5543",
+          storageBucket: "flutter-ai-playground-f5543.firebasestorage.app",
+          messagingSenderId: "723494791222",
+          appId: "1:723494791222:web:4625b4086b5c0247139097",
+        };
+      }
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+
+      window.fb = {
+        db, auth, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, deleteDoc,
+        signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+      };
+    </script>
+
+    <!-- 2. Load React Core Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-sky-200">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // --- STYLING & ASSETS ---
+      const globalStyles = `
+          @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+          
+          body {
+            font-family: 'Fredoka', sans-serif;
+            background: radial-gradient(#bae6fd 3px, transparent 3px), linear-gradient(135deg, #7dd3fc 0%, #38bdf8 100%);
+            background-size: 32px 32px, 100% 100%;
+            background-attachment: fixed;
+            margin: 0;
+            overflow-x: hidden;
+            overscroll-behavior-y: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          .cartoon-border { border: 4px solid #1e293b; }
+          .cartoon-shadow { box-shadow: 4px 4px 0px #1e293b; }
+          .cartoon-shadow-sm { box-shadow: 2px 2px 0px #1e293b; }
+
+          .cartoon-btn { transition: transform 0.1s; }
+          .cartoon-btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0px 0px 0px #1e293b; }
+
+          .card-hover { transition: transform 0.15s ease-out; }
+          .card-hover:active { transform: scale(0.95) !important; }
+
+          .animate-bounce-slight { animation: bounceSlight 3s infinite ease-in-out; }
+          .animate-pulse-soft { animation: pulseSoft 2s infinite ease-in-out; }
+          .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+          .animate-fade-in { animation: fadeIn 0.2s forwards; }
+
+          @keyframes bounceSlight { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+          @keyframes pulseSoft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+          @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+          /* Hide scrollbar for neat mobile swiping */
+          .hide-scrollbar::-webkit-scrollbar { display: none; }
+          .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        `;
+
+      const SUITS = [
+        { id: "H", symbol: "♥", color: "text-rose-500" },
+        { id: "D", symbol: "♦", color: "text-rose-500" },
+        { id: "C", symbol: "♣", color: "text-slate-800" },
+        { id: "S", symbol: "♠", color: "text-slate-800" },
+      ];
+      const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+
+      const createDeck = () => {
+        let deck = [];
+        for (let suit of SUITS) {
+          for (let rank of RANKS) {
+            deck.push({ id: `${suit.id}-${rank}`, rank, suit: suit.symbol, color: suit.color });
+          }
+        }
+        for (let i = deck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+        return deck;
+      };
+
+      // --- SHARED UI COMPONENTS ---
+      const Modal = ({ msg, onClose }) => {
+        if (!msg) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/70 animate-fade-in backdrop-blur-sm">
+            <div className="bg-white cartoon-border rounded-3xl p-6 w-full max-w-sm cartoon-shadow animate-slide-up text-center">
+              <h3 className="text-2xl font-black text-rose-500 mb-2">Notice</h3>
+              <p className="text-slate-700 font-bold mb-6 whitespace-pre-wrap">{msg}</p>
+              <button onClick={onClose} className="cartoon-btn w-full bg-blue-400 cartoon-border cartoon-shadow-sm text-slate-900 font-bold text-xl py-3 rounded-xl">
+                Got it
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      const Card = ({ card, onClick, selectable }) => (
+        <div 
+          onClick={selectable ? onClick : undefined}
+          className={`bg-slate-50 cartoon-border rounded-xl flex flex-col justify-between p-2 w-20 h-28 text-xl shrink-0
+            ${selectable ? 'cursor-pointer card-hover cartoon-shadow hover:bg-white' : 'cartoon-shadow-sm opacity-90'} 
+            ${card.color} relative`}
+        >
+          <div className="flex flex-col items-center leading-none self-start">
+            <span className="font-black">{card.rank}</span>
+            <span className="text-sm mt-0.5">{card.suit}</span>
+          </div>
+          <span className="self-center text-4xl drop-shadow-sm z-10">{card.suit}</span>
+          <div className="flex flex-col items-center leading-none self-end rotate-180">
+            <span className="font-black">{card.rank}</span>
+            <span className="text-sm mt-0.5">{card.suit}</span>
+          </div>
+        </div>
+      );
+
+      const CardBack = ({ mini }) => (
+        <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 cartoon-border rounded-xl flex items-center justify-center
+          ${mini ? 'w-12 h-16' : 'w-16 h-24 sm:w-20 sm:h-28'} cartoon-shadow-sm shrink-0 overflow-hidden relative`}
+        >
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.4) 1px, transparent 0)', backgroundSize: '8px 8px' }}></div>
+          <img 
+            src="https://checkers.page/fish.png" 
+            alt="Fish" 
+            className={`z-10 animate-bounce-slight ${mini ? 'w-8 h-8' : 'w-12 h-12'} object-contain`} 
+            style={{ animationDuration: '4s' }}
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        </div>
+      );
+
+      // --- MAIN APP ---
+      function App() {
+        const [peerLoaded, setPeerLoaded] = useState(false);
+        const [appState, setAppState] = useState("menu");
+        const [gameMode, setGameMode] = useState(null);
+        const [alertMsg, setAlertMsg] = useState(null);
+        const [showLogs, setShowLogs] = useState(false);
+
+        const peerRef = useRef(null);
+        const connRef = useRef(null);
+        const [peerCode, setPeerCode] = useState("");
+        const [joinCodeInput, setJoinCodeInput] = useState("");
+        const [isHost, setIsHost] = useState(false);
+        const [connectionStatus, setConnectionStatus] = useState("");
+
+        const [fbListener, setFbListener] = useState(null);
+        const [user, setUser] = useState(null);
+        const gameStartedRef = useRef(false);
+        const lastActionIdRef = useRef(null);
+
+        const [matchState, setMatchState] = useState({
+          deck: [], playerHand: [], opponentHand: [], playerBooks: [], opponentBooks: [],
+          turn: "player", messages: [], gameOver: false, phase: "ask", currentAsk: null,
+        });
+
+        const [guestState, setGuestState] = useState(null);
+
+        useEffect(() => {
+          if (!window.Peer) {
+            const script = document.createElement("script");
+            script.src = "https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js";
+            script.onload = () => setPeerLoaded(true);
+            document.head.appendChild(script);
+          } else { setPeerLoaded(true); }
+
+          const styleSheet = document.createElement("style");
+          styleSheet.innerText = globalStyles;
+          document.head.appendChild(styleSheet);
+
+          let unsubscribeAuth = () => {};
+          const initAuth = async () => {
+            if (!window.fb) return;
+            try {
+              if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
+                try {
+                  await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
+                } catch (e) {
+                  await window.fb.signInAnonymously(window.fb.auth);
+                }
+              } else {
+                await window.fb.signInAnonymously(window.fb.auth);
+              }
+              unsubscribeAuth = window.fb.onAuthStateChanged(window.fb.auth, setUser);
+            } catch (e) { console.error("Auth error", e); }
+          };
+          setTimeout(initAuth, 200);
+
+          return () => { document.head.removeChild(styleSheet); unsubscribeAuth(); };
+        }, []);
+
+        // --- GAME LOGIC ---
+        const processAction = (state, actionType, payload) => {
+          let draft = JSON.parse(JSON.stringify(state));
+          let newMessages = [];
+          const addMsg = (msg) => newMessages.push(msg);
+
+          const checkBooksAndRefill = () => {
+            const checkBooks = (playerType, name) => {
+              let hand = draft[`${playerType}Hand`];
+              let books = draft[`${playerType}Books`];
+              const rankCounts = {};
+              hand.forEach((c) => { rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1; });
+
+              for (const r in rankCounts) {
+                if (rankCounts[r] === 4) {
+                  addMsg(`${name} completed a book of ${r}s!`);
+                  books.push(r);
+                  draft[`${playerType}Hand`] = hand.filter((c) => c.rank !== r);
+                }
+              }
+            };
+            checkBooks("player", "You"); checkBooks("opponent", "Opponent");
+
+            const refillHand = (playerType, name) => {
+              if (draft[`${playerType}Hand`].length === 0 && draft.deck.length > 0) {
+                const cardsToDraw = Math.min(5, draft.deck.length);
+                const drawn = draft.deck.splice(-cardsToDraw, cardsToDraw);
+                draft[`${playerType}Hand`].push(...drawn);
+                addMsg(`${name} drew ${cardsToDraw} cards.`);
+              }
+            };
+            refillHand("player", "You"); refillHand("opponent", "Opponent");
+
+            if (draft.playerBooks.length + draft.opponentBooks.length === 13 || 
+               (draft.deck.length === 0 && (draft.playerHand.length === 0 || draft.opponentHand.length === 0))) {
+              draft.gameOver = true;
+              let pScore = draft.playerBooks.length; let oScore = draft.opponentBooks.length;
+              if (pScore > oScore) addMsg("Game Over! You Win!");
+              else if (oScore > pScore) addMsg("Game Over! Opponent Wins!");
+              else addMsg("Game Over! Tie!");
+            }
+          };
+
+          if (actionType === "ASK") {
+            const rank = payload;
+            const asker = draft.turn;
+            const target = asker === "player" ? "opponent" : "player";
+            draft.phase = "respond";
+            draft.currentAsk = { rank, asker, target };
+            addMsg(`${asker === 'player' ? 'You' : 'Opponent'} asked for ${rank}s.`);
+          } else if (actionType === "GIVE_CARDS") {
+            const { rank, asker, target } = draft.currentAsk;
+            const matchingCards = draft[`${target}Hand`].filter((c) => c.rank === rank);
+            draft[`${target}Hand`] = draft[`${target}Hand`].filter((c) => c.rank !== rank);
+            draft[`${asker}Hand`].push(...matchingCards);
+            addMsg(`${target === 'player' ? 'You' : 'Opponent'} had ${matchingCards.length}!`);
+            checkBooksAndRefill();
+            draft.phase = "ask"; draft.currentAsk = null;
+          } else if (actionType === "SAY_GO_FISH") {
+            const { target } = draft.currentAsk;
+            addMsg(`${target === 'player' ? 'You' : 'Opponent'} said "Go Fish!"`);
+            if (draft.deck.length > 0) {
+              draft.phase = "draw";
+            } else {
+              addMsg(`The deck is empty!`);
+              draft.turn = target;
+              checkBooksAndRefill();
+              draft.phase = "ask"; draft.currentAsk = null;
+            }
+          } else if (actionType === "DRAW_FISH") {
+            const { rank, asker, target } = draft.currentAsk;
+            const drawnCard = draft.deck.pop();
+            draft[`${asker}Hand`].push(drawnCard);
+            addMsg(asker === 'player' ? `You fished a ${drawnCard.rank}.` : `Opponent fished a card.`);
+            if (drawnCard.rank === rank) {
+              addMsg(`${asker === 'player' ? 'You' : 'Opponent'} fished what they wanted!`);
+            } else {
+              draft.turn = target;
+            }
+            checkBooksAndRefill();
+            draft.phase = "ask"; draft.currentAsk = null;
+          }
+
+          draft.messages = [...newMessages, ...draft.messages].slice(0, 20);
+          return draft;
+        };
+
+        const initializeGame = () => {
+          const newDeck = createDeck();
+          setMatchState({
+            deck: newDeck.slice(14), playerHand: newDeck.slice(0, 7), opponentHand: newDeck.slice(7, 14),
+            playerBooks: [], opponentBooks: [], turn: "player", messages: ["Game started!"],
+            gameOver: false, phase: "ask", currentAsk: null,
+          });
+        };
+
+        // --- AI ---
+        useEffect(() => {
+          if (gameMode !== "ai" || matchState.gameOver) return;
+          const timer = setTimeout(() => {
+            if (matchState.phase === "ask" && matchState.turn === "opponent") {
+              const oppHand = matchState.opponentHand;
+              if (oppHand.length > 0) {
+                const randCard = oppHand[Math.floor(Math.random() * oppHand.length)];
+                setMatchState((prev) => processAction(prev, "ASK", randCard.rank));
+              } else { setMatchState((prev) => ({ ...prev, turn: "player" })); }
+            } else if (matchState.phase === "respond" && matchState.currentAsk?.target === "opponent") {
+              const hasCard = matchState.opponentHand.some((c) => c.rank === matchState.currentAsk.rank);
+              setMatchState((prev) => processAction(prev, hasCard ? "GIVE_CARDS" : "SAY_GO_FISH"));
+            } else if (matchState.phase === "draw" && matchState.currentAsk?.asker === "opponent") {
+              setMatchState((prev) => processAction(prev, "DRAW_FISH"));
+            }
+          }, 1500);
+          return () => clearTimeout(timer);
+        }, [matchState.turn, matchState.phase, matchState.currentAsk, gameMode, matchState.gameOver]);
+
+        // --- NETWORK ---
+        const generateCode = () => Math.floor(1000 + Math.random() * 9000).toString();
+
+        const hostLocalGame = () => {
+          if (!window.Peer) return;
+          const code = generateCode();
+          setPeerCode(code); setIsHost(true); setConnectionStatus("Waiting for opponent...");
+          const peer = new window.Peer(`gofish-game-${code}`);
+          peerRef.current = peer;
+          peer.on("connection", (conn) => { connRef.current = conn; setupLocalConnection(conn, true); });
+        };
+
+        const joinLocalGame = () => {
+          if (!window.Peer || joinCodeInput.length !== 4) return;
+          setIsHost(false); setConnectionStatus("Connecting...");
+          const peer = new window.Peer(); peerRef.current = peer;
+          peer.on("open", () => {
+            const conn = peer.connect(`gofish-game-${joinCodeInput}`);
+            connRef.current = conn; setupLocalConnection(conn, false);
+          });
+        };
+
+        const setupLocalConnection = (conn, isHostRole) => {
+          conn.on("open", () => {
+            setConnectionStatus("Connected!");
+            setTimeout(() => { setAppState("playing"); if (isHostRole) initializeGame(); }, 800);
+          });
+          conn.on("data", (data) => {
+            if (data.type === "SYNC" && !isHostRole) setGuestState(data.state);
+            else if (data.type === "ACTION" && isHostRole) setMatchState((prev) => processAction(prev, data.actionType, data.payload));
+          });
+          conn.on("close", () => { setAlertMsg("Connection lost!"); resetGame(); });
+        };
+
+        const playWorldwide = async () => {
+          if (!window.fb || !user) { setAlertMsg("Authenticating... please wait."); return; }
+          setGameMode("worldwide"); setAppState("lobby"); setConnectionStatus("Searching...");
+
+          const { db, collection, getDocs, doc, setDoc, updateDoc, onSnapshot } = window.fb;
+          const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+          const matchesRef = collection(db, "artifacts", appId, "public", "data", "gofish_matches");
+
+          try {
+            const snapshot = await getDocs(matchesRef);
+            let joinable = null;
+            snapshot.forEach((d) => { if (d.data().status === "waiting") joinable = { id: d.id }; });
+
+            if (joinable) {
+              setIsHost(false); setPeerCode(joinable.id);
+              const matchDoc = doc(db, "artifacts", appId, "public", "data", "gofish_matches", joinable.id);
+              await updateDoc(matchDoc, { status: "playing" });
+              setConnectionStatus("Match found!");
+
+              const unsub = onSnapshot(matchDoc, (snap) => {
+                if (!snap.exists()) return;
+                if (snap.data().hostState) setGuestState(snap.data().hostState);
+              });
+              setFbListener(() => unsub);
+              setTimeout(() => setAppState("playing"), 800);
+            } else {
+              setIsHost(true); const code = generateCode(); setPeerCode(code);
+              const matchDoc = doc(db, "artifacts", appId, "public", "data", "gofish_matches", code);
+              await setDoc(matchDoc, { status: "waiting", createdAt: Date.now() });
+              setConnectionStatus("Waiting for opponent...");
+
+              const unsub = onSnapshot(matchDoc, (snap) => {
+                if (!snap.exists()) return;
+                const data = snap.data();
+                if (data.status === "playing" && !gameStartedRef.current) {
+                  gameStartedRef.current = true; setConnectionStatus("Opponent joined!");
+                  setTimeout(() => { setAppState("playing"); initializeGame(); }, 800);
+                }
+                if (data.guestAction && data.guestAction.id !== lastActionIdRef.current) {
+                  lastActionIdRef.current = data.guestAction.id;
+                  setMatchState((p) => processAction(p, data.guestAction.type, data.guestAction.payload));
+                }
+              });
+              setFbListener(() => unsub);
+            }
+          } catch (err) {
+            setAlertMsg("Firebase Permission Denied!\n\nYou must update your Firestore Rules to allow access if running externally.");
+            resetGame();
+          }
+        };
+
+        useEffect(() => {
+          if (isHost && appState === "playing") {
+            const stateForGuest = {
+              deckCount: matchState.deck.length, myHand: matchState.opponentHand,
+              opponentHandCount: matchState.playerHand.length, myBooks: matchState.opponentBooks,
+              opponentBooks: matchState.playerBooks, isMyTurn: matchState.turn === "opponent",
+              messages: matchState.messages, gameOver: matchState.gameOver, phase: matchState.phase, currentAsk: matchState.currentAsk,
+            };
+            if (gameMode === "peer" && connRef.current) {
+              connRef.current.send({ type: "SYNC", state: stateForGuest });
+            } else if (gameMode === "worldwide" && window.fb && user) {
+              const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+              window.fb.updateDoc(window.fb.doc(window.fb.db, "artifacts", appId, "public", "data", "gofish_matches", peerCode), { hostState: stateForGuest }).catch(console.error);
+            }
+          }
+        }, [matchState, gameMode, isHost, appState, peerCode, user]);
+
+        const triggerAction = (actionType, payload) => {
+          if (uiState.gameOver) return;
+          if (gameMode === "ai" || isHost) {
+            setMatchState((prev) => processAction(prev, actionType, payload));
+          } else if (gameMode === "peer" && !isHost) {
+            connRef.current.send({ type: "ACTION", actionType, payload });
+          } else if (gameMode === "worldwide" && !isHost && window.fb && user) {
+            const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+            window.fb.updateDoc(window.fb.doc(window.fb.db, "artifacts", appId, "public", "data", "gofish_matches", peerCode), {
+              guestAction: { type: actionType, payload: payload !== undefined ? payload : null, id: Date.now() },
+            }).catch(console.error);
+            if (actionType === "ASK") setGuestState((p) => ({ ...p, isMyTurn: false }));
+          }
+        };
+
+        const resetGame = () => {
+          if (peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
+          connRef.current = null;
+          if (fbListener) { fbListener(); setFbListener(null); }
+          if (gameMode === "worldwide" && peerCode && window.fb && user) {
+            const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+            window.fb.deleteDoc(window.fb.doc(window.fb.db, "artifacts", appId, "public", "data", "gofish_matches", peerCode)).catch(console.error);
+          }
+          gameStartedRef.current = false; setAppState("menu"); setGameMode(null);
+          setGuestState(null); setConnectionStatus(""); setPeerCode(""); setShowLogs(false);
+        };
+
+        // --- STATE DERIVATION ---
+        let uiState = {
+          myHand: [], opponentHandCount: 0, myBooks: [], opponentBooks: [], deckCount: 0,
+          isMyTurn: false, messages: [], gameOver: false, phase: "ask", currentAsk: null,
+          isMeAsker: false, isMeTarget: false, hasRequestedCard: false, currentAskRank: null,
+        };
+
+        if (gameMode === "ai" || isHost) {
+          uiState = {
+            myHand: matchState.playerHand, opponentHandCount: matchState.opponentHand.length,
+            myBooks: matchState.playerBooks, opponentBooks: matchState.opponentBooks,
+            deckCount: matchState.deck.length, isMyTurn: matchState.turn === "player",
+            messages: matchState.messages, gameOver: matchState.gameOver, phase: matchState.phase,
+            currentAsk: matchState.currentAsk, isMeAsker: matchState.currentAsk?.asker === "player",
+            isMeTarget: matchState.currentAsk?.target === "player",
+            hasRequestedCard: matchState.currentAsk && matchState.playerHand.some((c) => c.rank === matchState.currentAsk.rank),
+            currentAskRank: matchState.currentAsk?.rank,
+          };
+        } else if (guestState) {
+          uiState = {
+            ...guestState, isMeAsker: guestState.currentAsk?.asker === "opponent",
+            isMeTarget: guestState.currentAsk?.target === "opponent",
+            hasRequestedCard: guestState.currentAsk && guestState.myHand.some((c) => c.rank === guestState.currentAsk.rank),
+            currentAskRank: guestState.currentAsk?.rank,
+          };
+        }
+
+        // --- VIEWS ---
+        if (appState === "menu") {
+          return (
+            <div className="flex flex-col h-[100dvh] items-center justify-center p-6 relative overflow-hidden text-center">
+              <AlertModal msg={alertMsg} onClose={() => setAlertMsg(null)} />
+              
+              <div className="absolute top-10 -left-6 opacity-40 -rotate-12"><CardBack mini /></div>
+              <div className="absolute bottom-20 -right-6 opacity-40 rotate-12"><CardBack mini /></div>
+
+              <div className="flex justify-center space-x-[-10px] animate-bounce-slight mb-8 z-10">
+                <div className="-rotate-12 translate-y-2"><CardBack mini/></div>
+                <div className="z-10 scale-110 -translate-y-2"><CardBack mini/></div>
+                <div className="rotate-12 translate-y-2"><CardBack mini/></div>
+              </div>
+
+              <h1 className="text-6xl font-black text-blue-600 cartoon-shadow-sm mb-12 tracking-wide text-white" 
+                  style={{ textShadow: "4px 4px 0px #1e293b, -2px -2px 0px #1e293b, 2px -2px 0px #1e293b, -2px 2px 0px #1e293b" }}>
+                GO FISH!
+              </h1>
+
+              <div className="flex flex-col space-y-4 w-full max-w-xs z-10">
+                <button className="cartoon-btn bg-blue-300 cartoon-border cartoon-shadow font-black text-xl py-4 rounded-2xl"
+                  onClick={() => { setGameMode("ai"); initializeGame(); setAppState("playing"); }}>
+                  Play vs AI
+                </button>
+                <button className="cartoon-btn bg-blue-400 cartoon-border cartoon-shadow font-black text-xl py-4 rounded-2xl"
+                  onClick={() => { setGameMode("peer"); setAppState("lobby"); }}>
+                  Play Local
+                </button>
+                <button className="cartoon-btn bg-blue-500 text-white cartoon-border cartoon-shadow font-black text-xl py-4 rounded-2xl"
+                  onClick={playWorldwide}>
+                  Play Worldwide
+                </button>
+                <button className="cartoon-btn bg-white cartoon-border font-bold text-lg py-3 rounded-xl mt-4 text-slate-700"
+                  onClick={() => setAppState("rules")}>
+                  How to Play
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        if (appState === "rules") {
+          return (
+            <div className="flex flex-col h-[100dvh] items-center justify-center p-6 bg-sky-200">
+              <div className="bg-white cartoon-border rounded-3xl p-6 w-full cartoon-shadow-sm">
+                <h2 className="text-3xl font-black text-slate-800 mb-4 border-b-4 border-slate-200 pb-2">Rules</h2>
+                <ul className="space-y-3 text-base text-slate-700 font-semibold mb-6 list-disc pl-5">
+                  <li>Collect sets of 4 matching cards ("Books").</li>
+                  <li>Tap a card in your hand to ask your opponent for it.</li>
+                  <li>If they have it, you get their cards and go again!</li>
+                  <li>If not, they say "Go Fish!", you draw a card.</li>
+                  <li>Most books at the end wins!</li>
+                </ul>
+                <button className="cartoon-btn w-full bg-blue-400 cartoon-border cartoon-shadow-sm font-black text-xl py-4 rounded-xl"
+                  onClick={() => setAppState("menu")}>
+                  Back
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        if (appState === "lobby") {
+          return (
+            <div className="flex flex-col h-[100dvh] items-center justify-center p-6">
+              <AlertModal msg={alertMsg} onClose={() => setAlertMsg(null)} />
+              
+              <div className="bg-white cartoon-border rounded-3xl p-6 w-full max-w-sm text-center cartoon-shadow-sm">
+                <h2 className="text-3xl font-black text-slate-800 mb-6">{gameMode === "worldwide" ? "Worldwide" : "Local"}</h2>
+                
+                {connectionStatus ? (
+                  <div className="py-6">
+                    <p className="text-xl font-bold text-slate-700 animate-pulse">{connectionStatus}</p>
+                    {isHost && gameMode === "peer" && <p className="text-5xl font-black text-indigo-500 mt-4 tracking-widest">{peerCode}</p>}
+                  </div>
+                ) : (
+                  <div className="flex flex-col space-y-6">
+                    <button onClick={hostLocalGame} disabled={!peerLoaded}
+                      className="cartoon-btn w-full bg-blue-300 cartoon-border cartoon-shadow-sm font-black text-xl py-4 rounded-xl">
+                      Host Game
+                    </button>
+                    <div className="relative border-t-4 border-slate-200 flex justify-center">
+                      <span className="bg-white px-3 -mt-3 font-bold text-slate-400 text-sm">OR JOIN CODE</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" maxLength={4} placeholder="1234"
+                        className="flex-1 cartoon-border text-center text-2xl font-black rounded-xl outline-none w-0"
+                        value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value.replace(/\D/g, ""))} />
+                      <button onClick={joinLocalGame} disabled={!peerLoaded || joinCodeInput.length !== 4}
+                        className="cartoon-btn bg-blue-500 text-white cartoon-border font-black text-lg px-4 rounded-xl disabled:opacity-50">
+                        Join
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <button className="text-slate-500 font-bold mt-6 underline decoration-2" onClick={resetGame}>Cancel</button>
+              </div>
+            </div>
+          );
+        }
+
+        // --- PLAYING SCREEN (MOBILE OPTIMIZED) ---
+        return (
+          <div className="flex flex-col h-[100dvh] bg-sky-200 overflow-hidden relative">
+            <AlertModal msg={alertMsg} onClose={() => setAlertMsg(null)} />
+            
+            {/* Overlay Drawer for Logs/Books */}
+            {showLogs && (
+              <div className="absolute inset-0 z-40 flex flex-col justify-end bg-slate-900/40 animate-fade-in" onClick={() => setShowLogs(false)}>
+                <div className="bg-white h-[75vh] w-full rounded-t-3xl cartoon-border-t p-4 flex flex-col gap-4 animate-slide-up shadow-2xl" onClick={e=>e.stopPropagation()}>
+                  <div className="flex justify-between items-center shrink-0 border-b-4 border-slate-100 pb-2">
+                    <h3 className="font-black text-2xl text-slate-800">Game Stats</h3>
+                    <button onClick={() => setShowLogs(false)} className="bg-slate-200 rounded-full w-8 h-8 font-bold">X</button>
+                  </div>
+                  
+                  {/* Books */}
+                  <div className="shrink-0 flex gap-2">
+                     <div className="flex-1 bg-rose-50 p-2 rounded-xl border-2 border-rose-100 flex flex-col items-center">
+                        <span className="text-xs font-bold text-rose-500 uppercase">Opponent Books</span>
+                        <div className="font-black text-xl text-rose-600">{uiState.opponentBooks.length}</div>
+                     </div>
+                     <div className="flex-1 bg-indigo-50 p-2 rounded-xl border-2 border-indigo-100 flex flex-col items-center">
+                        <span className="text-xs font-bold text-indigo-500 uppercase">Your Books</span>
+                        <div className="font-black text-xl text-indigo-600">{uiState.myBooks.length}</div>
+                     </div>
+                  </div>
+
+                  {/* Logs */}
+                  <div className="flex-1 bg-slate-800 rounded-2xl p-3 overflow-y-auto space-y-2 cartoon-border shadow-inner">
+                    {uiState.messages.map((msg, i) => (
+                      <div key={i} className={`p-2 rounded-xl text-xs font-bold ${i===0 ? 'bg-yellow-300 text-slate-900 border-2 border-slate-900' : 'text-slate-300'}`}>
+                        {msg}
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={resetGame} className="shrink-0 w-full bg-rose-100 text-rose-600 font-bold py-3 rounded-xl cartoon-border cartoon-btn mt-2">Quit Game</button>
+                </div>
+              </div>
+            )}
+
+            {/* TOP BAR: Opponent Info */}
+            <div className="shrink-0 flex justify-between items-center p-4 bg-white/70 backdrop-blur-md border-b-4 border-slate-800 z-10">
+               <div className="flex flex-col">
+                  <span className="font-black text-slate-800 text-lg leading-none">Opponent</span>
+                  <span className="text-xs font-bold text-rose-500">{uiState.opponentBooks.length} Books</span>
+               </div>
+               
+               {/* Tiny overlapping hand representation */}
+               <div className="flex justify-end -space-x-6 overflow-hidden max-w-[150px] pr-2">
+                 {Array.from({ length: Math.min(uiState.opponentHandCount, 5) }).map((_, i) => (
+                   <div key={i} className="w-8 h-12 bg-indigo-500 cartoon-border border-2 rounded-md shadow-sm shrink-0 flex items-center justify-center">
+                     <span className="text-[8px]">🐟</span>
+                   </div>
+                 ))}
+                 {uiState.opponentHandCount > 5 && (
+                   <div className="z-10 w-8 h-8 rounded-full bg-slate-800 text-white text-xs font-bold flex items-center justify-center border-2 border-slate-800 self-center -ml-2">+{uiState.opponentHandCount - 5}</div>
+                 )}
+                 {uiState.opponentHandCount === 0 && <span className="text-xs font-bold text-slate-400">0 Cards</span>}
+               </div>
+            </div>
+
+            {/* CENTER ACTION AREA */}
+            <div className="flex-1 flex flex-col items-center justify-center p-4 relative w-full overflow-hidden">
+               {/* Status Banner */}
+               <div className={`px-6 py-3 rounded-2xl cartoon-border shadow-lg mb-6 transition-colors w-full max-w-sm text-center
+                  ${uiState.gameOver ? 'bg-purple-500' : 
+                    uiState.phase === 'respond' && uiState.isMeTarget ? 'bg-yellow-400 animate-pulse-soft' :
+                    uiState.phase === 'draw' && uiState.isMeAsker ? 'bg-blue-400 animate-pulse-soft' :
+                    uiState.isMyTurn && uiState.phase === 'ask' ? 'bg-green-400' : 'bg-slate-300'}`}
+               >
+                 <h2 className={`text-xl font-black ${uiState.gameOver ? 'text-white' : 'text-slate-900'} uppercase tracking-wider`}>
+                    {uiState.gameOver ? 'GAME OVER!' : 
+                     (uiState.phase === 'respond' && uiState.isMeTarget) ? 'Respond!' :
+                     (uiState.phase === 'draw' && uiState.isMeAsker) ? 'Draw a Card!' :
+                     (uiState.isMyTurn ? 'Your Turn' : "Waiting...")}
+                 </h2>
+               </div>
+
+               {/* Center Board (Deck + Action Prompt) */}
+               <div className="flex gap-4 items-center w-full max-w-sm justify-center">
+                  
+                  {/* Deck */}
+                  <div className={`relative ${uiState.phase === 'draw' && uiState.isMeAsker ? 'cursor-pointer active:scale-95' : 'opacity-80'}`} 
+                       onClick={() => { if(uiState.phase === 'draw' && uiState.isMeAsker) triggerAction("DRAW_FISH"); }}>
+                    {uiState.deckCount > 0 ? <CardBack /> : (
+                       <div className="w-16 h-24 border-4 border-dashed border-slate-400 rounded-xl flex items-center justify-center opacity-50"><span className="text-xs font-bold">Empty</span></div>
+                    )}
+                    {uiState.deckCount > 0 && <div className="absolute -bottom-2 -right-2 bg-yellow-400 border-2 border-slate-800 text-xs font-black rounded-full w-8 h-8 flex items-center justify-center shadow-sm">{uiState.deckCount}</div>}
+                  </div>
+
+                  {/* Dynamic Action Box */}
+                  {uiState.currentAsk ? (
+                    <div className="flex-1 bg-white cartoon-border cartoon-shadow-sm rounded-2xl p-3 flex flex-col items-center justify-center animate-slide-up text-center min-h-[110px]">
+                       <p className="font-bold text-slate-700 text-sm leading-tight">
+                         {uiState.isMeAsker ? "You" : "Opponent"} wants<br/>
+                         <span className="text-3xl font-black">{uiState.currentAskRank}s</span>
+                       </p>
+                       
+                       {uiState.phase === "respond" && (
+                         <div className="flex gap-2 mt-2 w-full">
+                           <button disabled={!uiState.isMeTarget || !uiState.hasRequestedCard} onClick={() => triggerAction("GIVE_CARDS")}
+                             className={`flex-1 border-2 border-slate-800 font-bold py-1 px-1 text-xs rounded-lg ${uiState.isMeTarget && uiState.hasRequestedCard ? 'bg-green-400' : 'bg-slate-200 opacity-50'}`}>
+                             Give
+                           </button>
+                           <button disabled={!uiState.isMeTarget || uiState.hasRequestedCard} onClick={() => triggerAction("SAY_GO_FISH")}
+                             className={`flex-1 border-2 border-slate-800 font-bold py-1 px-1 text-xs rounded-lg ${uiState.isMeTarget && !uiState.hasRequestedCard ? 'bg-rose-400' : 'bg-slate-200 opacity-50'}`}>
+                             Go Fish
+                           </button>
+                         </div>
+                       )}
+
+                       {uiState.phase === "draw" && (
+                         <button disabled={!uiState.isMeAsker} onClick={() => triggerAction("DRAW_FISH")}
+                           className={`w-full mt-2 border-2 border-slate-800 font-bold py-1 px-2 rounded-lg text-sm ${uiState.isMeAsker ? 'bg-blue-400' : 'bg-slate-200 opacity-50'}`}>
+                           Fish!
+                         </button>
+                       )}
+                    </div>
+                  ) : (
+                    <div className="flex-1 bg-white/40 cartoon-border border-dashed rounded-2xl p-3 flex items-center justify-center min-h-[110px]">
+                       <span className="text-slate-500 font-bold text-sm text-center">
+                         {uiState.isMyTurn ? "Tap a card below to ask." : "Opponent is thinking..."}
+                       </span>
+                    </div>
+                  )}
+               </div>
+            </div>
+
+            {/* BOTTOM AREA: Player Hand & Dock */}
+            <div className="shrink-0 bg-slate-800 w-full pt-4 pb-6 rounded-t-3xl cartoon-border-t relative flex flex-col z-20">
+               
+               {/* Quick access log button */}
+               <button onClick={() => setShowLogs(true)} className="absolute -top-5 left-1/2 -translate-x-1/2 bg-yellow-400 cartoon-border border-2 px-6 py-1 rounded-full shadow-md font-bold text-xs flex items-center gap-2">
+                 <span>{uiState.messages[0] ? '💬 ' + uiState.messages[0].substring(0,20)+'...' : 'Stats & Logs'}</span>
+               </button>
+
+               <div className="flex justify-between px-6 mb-2 text-white">
+                  <span className="font-bold text-sm">Your Hand ({uiState.myHand.length})</span>
+                  <span className="font-bold text-sm text-indigo-300">{uiState.myBooks.length} Books</span>
+               </div>
+
+               {/* Scrollable Hand */}
+               <div className="flex overflow-x-auto gap-3 px-6 pb-4 pt-2 hide-scrollbar snap-x w-full">
+                  {uiState.myHand.map((card, i) => (
+                    <div key={card.id} className="snap-center shrink-0 animate-fade-in" style={{animationDelay: `${i*0.05}s`}}>
+                      <Card 
+                        card={card} 
+                        selectable={uiState.isMyTurn && !uiState.gameOver && uiState.phase === 'ask'} 
+                        onClick={() => { if(uiState.isMyTurn && !uiState.gameOver && uiState.phase === 'ask') triggerAction('ASK', card.rank); }}
+                      />
+                    </div>
+                  ))}
+                  {uiState.myHand.length === 0 && (
+                    <div className="w-full text-center py-6 text-slate-400 font-bold text-sm italic">You have no cards.</div>
+                  )}
+               </div>
+            </div>
+          </div>
+        );
+      }
+
+      const container = document.getElementById("root");
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
+    </script>
+  </body>
+</html>
