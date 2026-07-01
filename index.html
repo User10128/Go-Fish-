@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Go Fish! - Play Online</title>
 
+    <!-- Mobile Redirect Script -->
+    <script>
+      if (
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        )
+      ) {
+        window.location.href = "/mobile";
+      }
+    </script>
+
     <!-- 1. Load Firebase SDK (Upgraded to 11.6.1 for correct permissions) -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -248,7 +259,10 @@
                     __initial_auth_token
                   );
                 } catch (tokenErr) {
-                  console.warn("Custom token failed (usually due to external environment), falling back to anonymous:", tokenErr);
+                  console.warn(
+                    "Custom token failed (usually due to external environment), falling back to anonymous:",
+                    tokenErr
+                  );
                   await window.fb.signInAnonymously(window.fb.auth);
                 }
               } else {
@@ -652,21 +666,24 @@
             }
           } catch (err) {
             console.error("Matchmaking error:", err);
-            
+
             // Helpful alert instructing the user on how to fix Firestore Rules outside the Sandbox
-            if (err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'))) {
-               alert(
-                 "🔒 Firebase Permission Denied!\n\n" +
-                 "To run this on your own Firebase project, you must update your Firestore Rules to allow access.\n\n" +
-                 "1. Go to your Firebase Console -> Firestore Database -> Rules\n" +
-                 "2. Change the rules to:\n\n" +
-                 "allow read, write: if true;\n\n" +
-                 "(Make sure to secure this properly before releasing it to the public!)"
-               );
+            if (
+              err.code === "permission-denied" ||
+              (err.message && err.message.toLowerCase().includes("permission"))
+            ) {
+              alert(
+                "🔒 Firebase Permission Denied!\n\n" +
+                  "To run this on your own Firebase project, you must update your Firestore Rules to allow access.\n\n" +
+                  "1. Go to your Firebase Console -> Firestore Database -> Rules\n" +
+                  "2. Change the rules to:\n\n" +
+                  "allow read, write: if true;\n\n" +
+                  "(Make sure to secure this properly before releasing it to the public!)"
+              );
             } else {
-               alert("Could not connect to matchmaking servers: " + err.message);
+              alert("Could not connect to matchmaking servers: " + err.message);
             }
-            
+
             resetGame();
           }
         };
@@ -731,10 +748,10 @@
 
             window.fb
               .updateDoc(gameRef, {
-                guestAction: { 
-                  type: actionType, 
-                  payload: payload !== undefined ? payload : null, 
-                  id: Date.now() 
+                guestAction: {
+                  type: actionType,
+                  payload: payload !== undefined ? payload : null,
+                  id: Date.now(),
                 },
               })
               .catch(console.error);
