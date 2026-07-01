@@ -837,7 +837,7 @@
 
         if (gameMode === "ai" || isHost) {
           uiState = {
-            myHand: matchState.playerHand,
+            myHand: [...matchState.playerHand].sort((a, b) => RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)),
             opponentHandCount: matchState.opponentHand.length,
             myBooks: matchState.playerBooks,
             opponentBooks: matchState.opponentBooks,
@@ -859,6 +859,7 @@
         } else if (guestState) {
           uiState = {
             ...guestState,
+            myHand: [...guestState.myHand].sort((a, b) => RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)),
             isMeAsker: guestState.currentAsk?.asker === "opponent",
             isMeTarget: guestState.currentAsk?.target === "opponent",
             hasRequestedCard:
