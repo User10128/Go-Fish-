@@ -32,7 +32,7 @@
         firebaseConfig = JSON.parse(__firebase_config);
       } catch (e) {
         // Fallback only if running outside the managed environment
-        const firebaseConfig = {
+        firebaseConfig = {
           apiKey: "AIzaSyD7C-cYXzXwDOYj_GirtC9NvToMbs3HSVk",
           authDomain: "flutter-ai-playground-f5543.firebaseapp.com",
           projectId: "flutter-ai-playground-f5543",
@@ -233,7 +233,7 @@
           styleSheet.innerText = globalStyles;
           document.head.appendChild(styleSheet);
 
-          // Firebase Authenticaton setup
+          // Firebase Authentication setup with extra fallback safety
           let unsubscribeAuth = () => {};
           const initAuth = async () => {
             if (!window.fb) return;
@@ -242,10 +242,15 @@
                 typeof __initial_auth_token !== "undefined" &&
                 __initial_auth_token
               ) {
-                await window.fb.signInWithCustomToken(
-                  window.fb.auth,
-                  __initial_auth_token
-                );
+                try {
+                  await window.fb.signInWithCustomToken(
+                    window.fb.auth,
+                    __initial_auth_token
+                  );
+                } catch (tokenErr) {
+                  console.warn("Custom token failed (usually due to external environment), falling back to anonymous:", tokenErr);
+                  await window.fb.signInAnonymously(window.fb.auth);
+                }
               } else {
                 await window.fb.signInAnonymously(window.fb.auth);
               }
@@ -647,7 +652,21 @@
             }
           } catch (err) {
             console.error("Matchmaking error:", err);
-            alert("Could not connect to matchmaking servers.");
+            
+            // Helpful alert instructing the user on how to fix Firestore Rules outside the Sandbox
+            if (err.code === 'permission-denied' || (err.message && err.message.toLowerCase().includes('permission'))) {
+               alert(
+                 "🔒 Firebase Permission Denied!\n\n" +
+                 "To run this on your own Firebase project, you must update your Firestore Rules to allow access.\n\n" +
+                 "1. Go to your Firebase Console -> Firestore Database -> Rules\n" +
+                 "2. Change the rules to:\n\n" +
+                 "allow read, write: if true;\n\n" +
+                 "(Make sure to secure this properly before releasing it to the public!)"
+               );
+            } else {
+               alert("Could not connect to matchmaking servers: " + err.message);
+            }
+            
             resetGame();
           }
         };
@@ -712,7 +731,11 @@
 
             window.fb
               .updateDoc(gameRef, {
-                guestAction: { type: actionType, payload, id: Date.now() },
+                guestAction: { 
+                  type: actionType, 
+                  payload: payload !== undefined ? payload : null, 
+                  id: Date.now() 
+                },
               })
               .catch(console.error);
 
