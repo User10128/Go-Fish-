@@ -8,19 +8,17 @@
   "short_name": "Go Fish",
   "start_url": "/index",
   "theme_color": "#ffffff",
+  "description": "Play the classic Go Fish card game online right from your browser.",
   "icons": [
     {
-      "src": "https://fish.checkers.page/favicon.png",
+      "src": "favicon.png",
       "type": "image/png",
-      "sizes": "494x620",
-      "isSquare": false,
-      "isPng": true,
-      "isWebp": false,
-      "isJpg": false,
-      "width": 494,
-      "is512x512": true,
-      "is256x256": true,
-      "is192x192": true
+      "sizes": "192x192"
+    },
+    {
+      "src": "favicon.png",
+      "type": "image/png",
+      "sizes": "512x512"
     }
   ]
 }
