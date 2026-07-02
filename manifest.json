@@ -5,7 +5,7 @@
   "name": "Play Go Fish!",
   "orientation": "any",
   "scope": "/",
-  "short_name": "Go Fish",
+  "short_name": "Go Fish!",
   "start_url": "/index",
   "theme_color": "#ffffff",
   "description": "Play the classic Go Fish card game online right from your browser.",
