@@ -89,11 +89,13 @@
           .animate-pulse-soft { animation: pulseSoft 2s infinite ease-in-out; }
           .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
           .animate-fade-in { animation: fadeIn 0.2s forwards; }
+          .animate-book-pop { animation: bookPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 
           @keyframes bounceSlight { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
           @keyframes pulseSoft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
           @keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
           @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+          @keyframes bookPop { 0% { transform: scale(1); } 50% { transform: scale(1.6) translateY(-2px); color: #facc15; } 100% { transform: scale(1); } }
 
           /* Hide scrollbar for neat mobile swiping */
           .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -621,11 +623,11 @@
                   <div className="shrink-0 flex gap-2">
                      <div className="flex-1 bg-rose-50 p-2 rounded-xl border-2 border-rose-100 flex flex-col items-center">
                         <span className="text-xs font-bold text-rose-500 uppercase">Opponent Books</span>
-                        <div className="font-black text-xl text-rose-600">{uiState.opponentBooks.length}</div>
+                        <div key={`opp-book-${uiState.opponentBooks.length}`} className="font-black text-xl text-rose-600 animate-book-pop">{uiState.opponentBooks.length}</div>
                      </div>
                      <div className="flex-1 bg-indigo-50 p-2 rounded-xl border-2 border-indigo-100 flex flex-col items-center">
                         <span className="text-xs font-bold text-indigo-500 uppercase">Your Books</span>
-                        <div className="font-black text-xl text-indigo-600">{uiState.myBooks.length}</div>
+                        <div key={`my-book-${uiState.myBooks.length}`} className="font-black text-xl text-indigo-600 animate-book-pop">{uiState.myBooks.length}</div>
                      </div>
                   </div>
 
@@ -646,7 +648,7 @@
             <div className="shrink-0 flex justify-between items-center p-4 bg-white/70 backdrop-blur-md border-b-4 border-slate-800 z-10">
                <div className="flex flex-col">
                   <span className="font-black text-slate-800 text-lg leading-none">Opponent</span>
-                  <span className="text-xs font-bold text-rose-500">{uiState.opponentBooks.length} Books</span>
+                  <span key={`opp-bar-${uiState.opponentBooks.length}`} className="text-xs font-bold text-rose-500 animate-book-pop inline-block origin-left">{uiState.opponentBooks.length} Books</span>
                </div>
                
                {/* Tiny overlapping hand representation */}
@@ -736,9 +738,9 @@
                  <span>{uiState.messages[0] ? uiState.messages[0].substring(0,20)+'...' : 'Stats & Logs'}</span>
                </button>
 
-               <div className="flex justify-between px-6 mb-2 text-white">
+               <div className="flex justify-between px-6 mb-2 text-white items-center">
                   <span className="font-bold text-sm">Your Hand ({uiState.myHand.length})</span>
-                  <span className="font-bold text-sm text-indigo-300">{uiState.myBooks.length} Books</span>
+                  <span key={`my-bar-${uiState.myBooks.length}`} className="font-bold text-sm text-indigo-300 animate-book-pop inline-block origin-right">{uiState.myBooks.length} Books</span>
                </div>
 
                {/* Scrollable Hand */}
