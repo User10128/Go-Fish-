@@ -233,7 +233,12 @@
         const processAction = (state, actionType, payload) => {
           let draft = JSON.parse(JSON.stringify(state));
           let newMessages = [];
-          const addMsg = (msg) => newMessages.push(msg);
+          
+          // Secure localized logging
+          const addMsg = (hostMsg, guestMsg) => newMessages.push({ 
+             hostText: hostMsg, 
+             guestText: guestMsg || hostMsg 
+          });
 
           const checkBooksAndRefill = () => {
             const checkBooks = (playerType, name) => {
@@ -244,7 +249,11 @@
 
               for (const r in rankCounts) {
                 if (rankCounts[r] === 4) {
-                  addMsg(`${name} completed a book of ${r}s!`);
+                  if (playerType === 'player') {
+                     addMsg(`You completed a book of ${r}s!`, `Opponent completed a book of ${r}s!`);
+                  } else {
+                     addMsg(`Opponent completed a book of ${r}s!`, `You completed a book of ${r}s!`);
+                  }
                   books.push(r);
                   draft[`${playerType}Hand`] = hand.filter((c) => c.rank !== r);
                 }
@@ -257,7 +266,12 @@
                 const cardsToDraw = Math.min(5, draft.deck.length);
                 const drawn = draft.deck.splice(-cardsToDraw, cardsToDraw);
                 draft[`${playerType}Hand`].push(...drawn);
-                addMsg(`${name} drew ${cardsToDraw} cards.`);
+                
+                if (playerType === 'player') {
+                   addMsg(`You drew ${cardsToDraw} cards to refill.`, `Opponent drew ${cardsToDraw} cards to refill.`);
+                } else {
+                   addMsg(`Opponent drew ${cardsToDraw} cards to refill.`, `You drew ${cardsToDraw} cards to refill.`);
+                }
               }
             };
             refillHand("player", "You"); refillHand("opponent", "Opponent");
@@ -266,9 +280,9 @@
                (draft.deck.length === 0 && (draft.playerHand.length === 0 || draft.opponentHand.length === 0))) {
               draft.gameOver = true;
               let pScore = draft.playerBooks.length; let oScore = draft.opponentBooks.length;
-              if (pScore > oScore) addMsg("Game Over! You Win!");
-              else if (oScore > pScore) addMsg("Game Over! Opponent Wins!");
-              else addMsg("Game Over! Tie!");
+              if (pScore > oScore) addMsg("Game Over! You Win!", "Game Over! Opponent Wins!");
+              else if (oScore > pScore) addMsg("Game Over! Opponent Wins!", "Game Over! You Win!");
+              else addMsg("Game Over! It's a Tie!", "Game Over! It's a Tie!");
             }
           };
 
@@ -278,22 +292,39 @@
             const target = asker === "player" ? "opponent" : "player";
             draft.phase = "respond";
             draft.currentAsk = { rank, asker, target };
-            addMsg(`${asker === 'player' ? 'You' : 'Opponent'} asked for ${rank}s.`);
+            
+            if (asker === 'player') {
+               addMsg(`You asked for ${rank}s.`, `Opponent asked for ${rank}s.`);
+            } else {
+               addMsg(`Opponent asked for ${rank}s.`, `You asked for ${rank}s.`);
+            }
           } else if (actionType === "GIVE_CARDS") {
             const { rank, asker, target } = draft.currentAsk;
             const matchingCards = draft[`${target}Hand`].filter((c) => c.rank === rank);
             draft[`${target}Hand`] = draft[`${target}Hand`].filter((c) => c.rank !== rank);
             draft[`${asker}Hand`].push(...matchingCards);
-            addMsg(`${target === 'player' ? 'You' : 'Opponent'} had ${matchingCards.length}!`);
+            
+            if (target === 'player') {
+               addMsg(`You had ${matchingCards.length}!`, `Opponent had ${matchingCards.length}!`);
+            } else {
+               addMsg(`Opponent had ${matchingCards.length}!`, `You had ${matchingCards.length}!`);
+            }
+            
             checkBooksAndRefill();
             draft.phase = "ask"; draft.currentAsk = null;
           } else if (actionType === "SAY_GO_FISH") {
             const { target } = draft.currentAsk;
-            addMsg(`${target === 'player' ? 'You' : 'Opponent'} said "Go Fish!"`);
+            
+            if (target === 'player') {
+               addMsg(`You said "Go Fish!"`, `Opponent said "Go Fish!"`);
+            } else {
+               addMsg(`Opponent said "Go Fish!"`, `You said "Go Fish!"`);
+            }
+            
             if (draft.deck.length > 0) {
               draft.phase = "draw";
             } else {
-              addMsg(`The deck is empty!`);
+              addMsg(`The deck is empty!`, `The deck is empty!`);
               draft.turn = target;
               checkBooksAndRefill();
               draft.phase = "ask"; draft.currentAsk = null;
@@ -302,9 +333,19 @@
             const { rank, asker, target } = draft.currentAsk;
             const drawnCard = draft.deck.pop();
             draft[`${asker}Hand`].push(drawnCard);
-            addMsg(asker === 'player' ? `You fished a ${drawnCard.rank}.` : `Opponent fished a card.`);
+            
+            if (asker === 'player') {
+               addMsg(`You fished a ${drawnCard.rank}.`, `Opponent fished a card.`);
+            } else {
+               addMsg(`Opponent fished a card.`, `You fished a ${drawnCard.rank}.`);
+            }
+            
             if (drawnCard.rank === rank) {
-              addMsg(`${asker === 'player' ? 'You' : 'Opponent'} fished what they wanted!`);
+              if (asker === 'player') {
+                 addMsg(`You fished exactly what you wanted!`, `Opponent fished exactly what they wanted!`);
+              } else {
+                 addMsg(`Opponent fished exactly what they wanted!`, `You fished exactly what you wanted!`);
+              }
             } else {
               draft.turn = target;
             }
@@ -312,7 +353,7 @@
             draft.phase = "ask"; draft.currentAsk = null;
           }
 
-          draft.messages = [...newMessages, ...draft.messages].slice(0, 20);
+          draft.messages = [...newMessages, ...draft.messages].slice(0, 30);
           return draft;
         };
 
@@ -320,7 +361,8 @@
           const newDeck = createDeck();
           setMatchState({
             deck: newDeck.slice(14), playerHand: newDeck.slice(0, 7), opponentHand: newDeck.slice(7, 14),
-            playerBooks: [], opponentBooks: [], turn: "player", messages: ["Game started!"],
+            playerBooks: [], opponentBooks: [], turn: "player", 
+            messages: [{hostText: "Game started! Your turn.", guestText: "Game started! Opponent's turn."}],
             gameOver: false, phase: "ask", currentAsk: null,
           });
         };
@@ -487,7 +529,8 @@
             opponentHandCount: matchState.opponentHand.length,
             myBooks: matchState.playerBooks, opponentBooks: matchState.opponentBooks,
             deckCount: matchState.deck.length, isMyTurn: matchState.turn === "player",
-            messages: matchState.messages, gameOver: matchState.gameOver, phase: matchState.phase,
+            messages: matchState.messages.map(m => m.hostText !== undefined ? m.hostText : m),
+            gameOver: matchState.gameOver, phase: matchState.phase,
             currentAsk: matchState.currentAsk, isMeAsker: matchState.currentAsk?.asker === "player",
             isMeTarget: matchState.currentAsk?.target === "player",
             hasRequestedCard: matchState.currentAsk && matchState.playerHand.some((c) => c.rank === matchState.currentAsk.rank),
@@ -497,6 +540,7 @@
           uiState = {
             ...guestState, 
             myHand: [...guestState.myHand].sort((a, b) => RANKS.indexOf(a.rank) - RANKS.indexOf(b.rank)),
+            messages: guestState.messages.map(m => m.guestText !== undefined ? m.guestText : m),
             isMeAsker: guestState.currentAsk?.asker === "opponent",
             isMeTarget: guestState.currentAsk?.target === "opponent",
             hasRequestedCard: guestState.currentAsk && guestState.myHand.some((c) => c.rank === guestState.currentAsk.rank),
@@ -735,7 +779,7 @@
                
                {/* Quick access log button */}
                <button onClick={() => setShowLogs(true)} className="absolute -top-5 left-1/2 -translate-x-1/2 bg-yellow-400 cartoon-border border-2 px-6 py-1 rounded-full shadow-md font-bold text-xs flex items-center gap-2">
-                 <span>{uiState.messages[0] ? uiState.messages[0].substring(0,20)+'...' : 'Stats & Logs'}</span>
+                 <span>{uiState.messages[0] ? (uiState.messages[0].length > 20 ? uiState.messages[0].substring(0,20)+'...' : uiState.messages[0]) : 'Stats & Logs'}</span>
                </button>
 
                <div className="flex justify-between px-6 mb-2 text-white items-center">
